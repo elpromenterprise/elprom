@@ -143,7 +143,7 @@ function Hero({ query, setQuery, total }) {
               placeholder="Search “Reel hook”, “Diwali sale”, “caption”…" />
             {query
               ? <button className="pa-search-clear" onClick={() => setQuery('')} aria-label="Clear"><Icon name="close" size={13} /></button>
-              : <kbd className="pa-search-kbd">300+</kbd>}
+              : <kbd className="pa-search-kbd">1300+</kbd>}
           </div>
 
           <div className="pa-trust">
@@ -162,7 +162,7 @@ function Hero({ query, setQuery, total }) {
 // ── Credibility strip ──────────────────────────────────────────────────────────
 function Stats() {
   const items = [
-    { n: 300, s: '+', label: 'ready-to-use prompts' },
+    { n: 1300, s: '+', label: 'ready-to-use prompts' },
     { n: 16, s: '', label: 'creator categories' },
     { n: 0, s: '', label: 'logins or sign-ups' },
     { n: 0, s: '', label: 'rupees, forever', prefix: '₹' },
@@ -286,13 +286,24 @@ function App() {
   }, []);
 
   const filtered = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    return PROMPTS.filter(p => {
-      if (activeCat !== 'all' && p.cat !== activeCat) return false;
-      if (!q) return true;
-      const hay = (p.title + ' ' + p.desc + ' ' + p.tags.join(' ') + ' ' + catMap[p.cat].name).toLowerCase();
-      return hay.includes(q);
+    // multi-word keyword search across title, description, tags, category AND the
+    // full prompt text — every word must match (AND), so "diwali caption" narrows.
+    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const scored = [];
+    PROMPTS.forEach(p => {
+      if (activeCat !== 'all' && p.cat !== activeCat) return;
+      if (!words.length) { scored.push({ p, s: 0 }); return; }
+      const title = p.title.toLowerCase();
+      const tags = p.tags.join(' ').toLowerCase();
+      const hay = title + ' ' + p.desc.toLowerCase() + ' ' + tags + ' ' + catMap[p.cat].name.toLowerCase() + ' ' + p.prompt.toLowerCase();
+      if (!words.every(w => hay.includes(w))) return;
+      // light relevance score: title/tag hits rank above body-only hits
+      let s = 0;
+      words.forEach(w => { if (title.includes(w)) s += 3; if (tags.includes(w)) s += 2; });
+      scored.push({ p, s });
     });
+    if (words.length) scored.sort((a, b) => b.s - a.s); // best matches first
+    return scored.map(x => x.p);
   }, [query, activeCat]);
 
   return (
@@ -308,7 +319,7 @@ function App() {
         </div>
       </nav>
 
-      <Hero query={query} setQuery={setQuery} total={300} />
+      <Hero query={query} setQuery={setQuery} total={1300} />
       <Stats />
       <CategoryBar categories={CATEGORIES} counts={counts} active={activeCat} onSelect={setActiveCat} />
 

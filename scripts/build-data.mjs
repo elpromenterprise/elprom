@@ -11,6 +11,7 @@ import { readdir, writeFile } from 'node:fs/promises'
 import { pathToFileURL } from 'node:url'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { BLUEPRINTS, NICHES } from '../src/data/packs.js'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
@@ -78,7 +79,7 @@ const TOOLS = [
 ]
 
 const STEPS = [
-  { emoji: '🔍', title: 'Find a prompt',  text: 'Search or browse 300+ prompts by category.' },
+  { emoji: '🔍', title: 'Find a prompt',  text: 'Search or browse 1,000+ prompts by category.' },
   { emoji: '✏️', title: 'Fill the blanks', text: 'Add your product, niche & audience.' },
   { emoji: '📋', title: 'Copy & paste',    text: 'One tap. Paste into ChatGPT, Claude or Gemini.' },
   { emoji: '🚀', title: 'Post & grow',     text: 'Ship content that actually works.' },
@@ -174,6 +175,25 @@ for (const f of files) {
   }
 }
 
+// ── Expand niche packs: BLUEPRINTS × NICHES → ~1,000 niche-tailored prompts ──
+const fillNiche = (s, n) =>
+  s.replaceAll('{NAME}', n.name).replaceAll('{LABEL}', n.label).replaceAll('{AUD}', n.aud)
+
+let packCount = 0
+for (const bp of BLUEPRINTS) {
+  for (const n of NICHES) {
+    all.push({
+      id: `bp-${bp.id}-${n.slug}`,
+      cat: bp.cat,
+      title: `${bp.title} — ${n.name}`,
+      desc: fillNiche(bp.desc, n),
+      prompt: normalize(fillNiche(bp.body, n)),
+      tags: [...bp.tags, n.slug],
+    })
+    packCount++
+  }
+}
+
 // Stable sort by design category order
 all.sort((a, b) => (CAT_ORDER[a.cat] - CAT_ORDER[b.cat]))
 
@@ -209,7 +229,7 @@ await writeFile(join(ROOT, 'promptadda-data.js'), banner + '\n' + body, 'utf8')
 
 const perCat = {}
 for (const p of all) perCat[p.cat] = (perCat[p.cat] || 0) + 1
-console.log(`✓ Wrote promptadda-data.js — ${all.length} prompts`)
+console.log(`✓ Wrote promptadda-data.js — ${all.length} prompts (${all.length - packCount} authored + ${packCount} niche-pack)`)
 console.log('  per category:', JSON.stringify(perCat))
 console.log('  unique blank tokens:', Object.keys(generatedHints).length, '| HINTS entries:', Object.keys(HINTS).length)
 if (dupes.length) { console.error('✗ duplicate ids present'); process.exit(1) }
