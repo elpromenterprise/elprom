@@ -1,5 +1,5 @@
 /* Tiny zero-dependency static file server for local dev.
- * Serves the project root (index.html + promptadda-*.{js,jsx}).
+ * Serves the project root (index.html + promptundo-*.{js,jsx}).
  * Run:  npm run dev   →   http://localhost:5173
  */
 import { createServer } from 'node:http'
@@ -38,5 +38,5 @@ const server = createServer(async (req, res) => {
 })
 
 server.listen(PORT, () => {
-  console.log(`\n  PromptAdda → http://localhost:${PORT}/\n`)
+  console.log(`\n  PromptUndo → http://localhost:${PORT}/\n`)
 })

@@ -1,4 +1,4 @@
-# PromptAdda 🪄
+# PromptUndo 🪄
 
 **Free, copy-paste AI prompts for Indian creators.** 12,000+ fill-in-the-blank prompts
 for captions, Reels, YouTube, selling, ads, brand deals & more — across 200+ creator &
@@ -11,7 +11,7 @@ Clean minimalist UI · No login · Free forever.
 ## Run it locally
 
 ```bash
-npm run data   # generate promptadda-data.js from the prompt source (once / after edits)
+npm run data   # generate promptundo-data.js from the prompt source (once / after edits)
 npm run dev    # serve at http://localhost:5173
 ```
 
@@ -25,14 +25,14 @@ look here). The **content** is generated from an editable prompt source.
 
 ```
 index.html              ← the design (CSS + CDN React 18 + Babel standalone)
-promptadda-icons.jsx    ← icon system + helpers   (design — UI, unchanged)
-promptadda-demo.jsx     ← animated hero demo       (design — UI, unchanged)
-promptadda-modal.jsx    ← the Customize modal      (design — UI, unchanged)
-promptadda-app.jsx      ← nav, hero, grid, footer  (design — UI, unchanged)
-promptadda-data.js      ← AUTO-GENERATED data layer (window.PA) — do NOT edit by hand
+promptundo-icons.jsx    ← icon system + helpers   (design — UI, unchanged)
+promptundo-demo.jsx     ← animated hero demo       (design — UI, unchanged)
+promptundo-modal.jsx    ← the Customize modal      (design — UI, unchanged)
+promptundo-app.jsx      ← nav, hero, grid, footer  (design — UI, unchanged)
+promptundo-data.js      ← AUTO-GENERATED data layer (window.PA) — do NOT edit by hand
 
 src/data/prompts/*.js   ← THE EDITABLE SOURCE (one file per category, 300+ prompts)
-scripts/build-data.mjs  ← generates promptadda-data.js from the source
+scripts/build-data.mjs  ← generates promptundo-data.js from the source
 scripts/serve.mjs       ← tiny zero-dep static dev server
 ```
 
@@ -51,7 +51,7 @@ scripts/serve.mjs       ← tiny zero-dep static dev server
    Use `[BRACKETS]` for blanks. You can write hints inline like `[PRICE, e.g. ₹499]` —
    the generator strips them into the fill-in field's placeholder automatically and
    normalizes the token to `[PRICE]` (the format the UI's parser expects).
-2. Run `npm run data` to regenerate `promptadda-data.js`.
+2. Run `npm run data` to regenerate `promptundo-data.js`.
 3. Refresh the browser.
 
 > The generator also maps my category ids → the design's ids

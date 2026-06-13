@@ -1,4 +1,4 @@
-/* Build promptadda-data.js (the design's window.PA data layer) from the
+/* Build promptundo-data.js (the design's window.PA data layer) from the
  * editable prompt source in src/data/prompts/*.js.
  *
  * It maps my field names + category ids to what the UI expects, and normalizes
@@ -212,7 +212,7 @@ for (const [token, hint] of Object.entries(generatedHints)) {
 }
 
 // ── Emit ────────────────────────────────────────────────────────────────────
-const banner = `/* PromptAdda — data layer (AUTO-GENERATED — do not edit by hand).
+const banner = `/* PromptUndo — data layer (AUTO-GENERATED — do not edit by hand).
    Source: src/data/prompts/*.js   ·   Regenerate: npm run data
    ${all.length} prompts across ${CATEGORIES.length - 1} categories. */`
 
@@ -229,11 +229,11 @@ const body =
   `  window.PA = { CATEGORIES, PROMPTS, HINTS, TOOLS, STEPS };\n` +
   `})();\n`
 
-await writeFile(join(ROOT, 'promptadda-data.js'), banner + '\n' + body, 'utf8')
+await writeFile(join(ROOT, 'promptundo-data.js'), banner + '\n' + body, 'utf8')
 
 const perCat = {}
 for (const p of all) perCat[p.cat] = (perCat[p.cat] || 0) + 1
-console.log(`✓ Wrote promptadda-data.js — ${all.length} prompts (${all.length - packCount} authored + ${packCount} niche-pack)`)
+console.log(`✓ Wrote promptundo-data.js — ${all.length} prompts (${all.length - packCount} authored + ${packCount} niche-pack)`)
 console.log('  per category:', JSON.stringify(perCat))
 console.log('  unique blank tokens:', Object.keys(generatedHints).length, '| HINTS entries:', Object.keys(HINTS).length)
 if (dupes.length) { console.error('✗ duplicate ids present'); process.exit(1) }

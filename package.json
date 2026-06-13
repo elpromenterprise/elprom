@@ -1,9 +1,9 @@
 {
-  "name": "promptadda",
+  "name": "promptundo",
   "private": true,
   "version": "0.2.0",
   "type": "module",
-  "description": "PromptAdda — free, copy-paste AI prompts for Indian creators. Static site (CDN React + Babel) with a data layer generated from src/data/prompts.",
+  "description": "PromptUndo — free, copy-paste AI prompts for Indian creators. Static site (CDN React + Babel) with a data layer generated from src/data/prompts.",
   "scripts": {
     "data": "node scripts/build-data.mjs",
     "dev": "node scripts/serve.mjs",
