@@ -3,7 +3,7 @@
 **Free, battle-tested AI prompts for Indian creators.** Captions, Reels, YouTube scripts,
 reselling, brand deals & more — fill in the blanks, copy, paste into ChatGPT/Claude, done.
 
-54+ prompts · No login · Free forever · Built with React + Vite + Tailwind v4.
+300+ prompts across 16 categories · No login · Free forever · Built with React + Vite + Tailwind v4.
 
 ---
 
@@ -35,7 +35,12 @@ npm run preview  # preview the production build
 ```
 src/
   data/
-    prompts.js      ← THE LIBRARY. Add/edit prompts here (the main file you'll touch).
+    prompts/        ← THE LIBRARY (300+ prompts). One file per category — edit these.
+      instagram.js  youtube.js  reels.js  twitter.js  linkedin.js
+      branding.js   blog.js     business.js  ads.js   money.js
+      email.js      local.js    coaching.js  podcast.js  design.js
+      productivity.js
+    prompts.js      ← aggregator: merges every category file into one PROMPTS array
     categories.js   ← category pills (id, label, emoji)
     tools.js        ← affiliate "tools we recommend" — put YOUR links here
   components/
@@ -45,8 +50,9 @@ src/
 ```
 
 ### Add a new prompt
-Open `src/data/prompts.js` and add an object. Use `[SQUARE_BRACKETS]` for any blank —
-the Customize panel auto-detects them and turns each into a fill-in field:
+Open the relevant file in `src/data/prompts/` and add an object to the array. Use
+`[SQUARE_BRACKETS]` for any blank — the Customize panel auto-detects them and turns
+each into a fill-in field:
 
 ```js
 {
