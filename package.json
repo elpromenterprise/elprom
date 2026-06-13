@@ -1,22 +1,12 @@
 {
   "name": "promptadda",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.2.0",
   "type": "module",
-  "description": "PromptAdda — Free, battle-tested AI prompts for Indian creators.",
+  "description": "PromptAdda — free, copy-paste AI prompts for Indian creators. Static site (CDN React + Babel) with a data layer generated from src/data/prompts.",
   "scripts": {
-    "dev": "vite",
-    "build": "vite build",
-    "preview": "vite preview"
-  },
-  "dependencies": {
-    "react": "^19.1.0",
-    "react-dom": "^19.1.0"
-  },
-  "devDependencies": {
-    "@tailwindcss/vite": "^4.1.5",
-    "@vitejs/plugin-react": "^4.4.1",
-    "tailwindcss": "^4.1.5",
-    "vite": "^6.3.5"
+    "data": "node scripts/build-data.mjs",
+    "dev": "node scripts/serve.mjs",
+    "build": "node scripts/build-data.mjs"
   }
 }

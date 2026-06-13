@@ -1,87 +1,73 @@
 # PromptAdda 🪄
 
-**Free, battle-tested AI prompts for Indian creators.** Captions, Reels, YouTube scripts,
-reselling, brand deals & more — fill in the blanks, copy, paste into ChatGPT/Claude, done.
+**Free, copy-paste AI prompts for Indian creators.** 300+ fill-in-the-blank prompts
+for captions, Reels, YouTube, selling, ads, brand deals & more. Pick one, fill the
+blanks, copy, paste into ChatGPT / Claude / Gemini.
 
-300+ prompts across 16 categories · No login · Free forever · Built with React + Vite + Tailwind v4.
+Clean minimalist UI · No login · Free forever.
 
 ---
 
 ## Run it locally
 
 ```bash
-npm install
-npm run dev      # → http://localhost:5173
+npm run data   # generate promptadda-data.js from the prompt source (once / after edits)
+npm run dev    # serve at http://localhost:5173
 ```
 
-Build for production:
+No build step, no bundler, no dependencies to install — it's a static site that loads
+React + Babel from a CDN at runtime.
 
-```bash
-npm run build    # outputs to /dist
-npm run preview  # preview the production build
-```
+## How it's built
 
-## Deploy (Vercel — 2 minutes)
-
-1. Push this folder to a GitHub repo.
-2. Go to [vercel.com](https://vercel.com) → New Project → import the repo.
-3. Framework preset: **Vite**. Build command `npm run build`, output dir `dist`.
-4. Deploy. That's it — you get a free `*.vercel.app` URL (add a custom domain later).
-
-> No backend, no database, no env vars needed for v1. It's a static site.
-
-## How it's organised
+The **UI is a self-contained static design** (kept exactly as designed — don't edit the
+look here). The **content** is generated from an editable prompt source.
 
 ```
-src/
-  data/
-    prompts/        ← THE LIBRARY (300+ prompts). One file per category — edit these.
-      instagram.js  youtube.js  reels.js  twitter.js  linkedin.js
-      branding.js   blog.js     business.js  ads.js   money.js
-      email.js      local.js    coaching.js  podcast.js  design.js
-      productivity.js
-    prompts.js      ← aggregator: merges every category file into one PROMPTS array
-    categories.js   ← category pills (id, label, emoji)
-    tools.js        ← affiliate "tools we recommend" — put YOUR links here
-  components/
-    Header / Hero / CategoryBar / PromptCard / CustomizeModal
-    HowItWorks / ToolsSection / Footer
-  App.jsx           ← search + filter + modal state
+index.html              ← the design (CSS + CDN React 18 + Babel standalone)
+promptadda-icons.jsx    ← icon system + helpers   (design — UI, unchanged)
+promptadda-demo.jsx     ← animated hero demo       (design — UI, unchanged)
+promptadda-modal.jsx    ← the Customize modal      (design — UI, unchanged)
+promptadda-app.jsx      ← nav, hero, grid, footer  (design — UI, unchanged)
+promptadda-data.js      ← AUTO-GENERATED data layer (window.PA) — do NOT edit by hand
+
+src/data/prompts/*.js   ← THE EDITABLE SOURCE (one file per category, 300+ prompts)
+scripts/build-data.mjs  ← generates promptadda-data.js from the source
+scripts/serve.mjs       ← tiny zero-dep static dev server
 ```
 
-### Add a new prompt
-Open the relevant file in `src/data/prompts/` and add an object to the array. Use
-`[SQUARE_BRACKETS]` for any blank — the Customize panel auto-detects them and turns
-each into a fill-in field:
+### Editing prompts (the part you'll actually touch)
+1. Edit a file in `src/data/prompts/` (e.g. `instagram.js`). Each prompt:
+   ```js
+   {
+     id: 'ig-something',
+     category: 'instagram',          // mapped to the UI's category id automatically
+     title: 'My Prompt',
+     description: 'One line on what it does.',
+     tags: ['caption', 'sales'],
+     prompt: `Write a caption for [PRODUCT] aimed at [AUDIENCE]...`,
+   }
+   ```
+   Use `[BRACKETS]` for blanks. You can write hints inline like `[PRICE, e.g. ₹499]` —
+   the generator strips them into the fill-in field's placeholder automatically and
+   normalizes the token to `[PRICE]` (the format the UI's parser expects).
+2. Run `npm run data` to regenerate `promptadda-data.js`.
+3. Refresh the browser.
 
-```js
-{
-  id: 'my-new-prompt',
-  title: 'My New Prompt',
-  category: 'instagram',            // must match an id in categories.js
-  description: 'One line on what it does.',
-  tags: ['caption', 'sales'],
-  prompt: `Write a caption for [PRODUCT] aimed at [AUDIENCE]...`,
-}
-```
+> The generator also maps my category ids → the design's ids
+> (`branding→personal`, `business→selling`, `money→deals`, `productivity→plan`) and
+> my field names (`description→desc`, `category→cat`).
 
-Tip: add `, e.g. something` inside a blank to show a placeholder hint, e.g.
-`[PRICE, e.g. ₹499]`.
+## Deploy (Vercel / Netlify / any static host)
+It's pure static. Point the host at the repo root, no build needed (or set the build
+command to `npm run build`, which just regenerates the data file). Output directory: `.`
 
-## Making money (without charging users)
-
-- **Affiliates:** edit `src/data/tools.js` with your real affiliate links (Canva, Hostinger,
-  Razorpay etc. — these pay in India). The Tools section is already wired up.
-- **Audience → email:** add a newsletter signup later; the audience is the real asset.
-- **Pro tier (later):** when traffic is real, gate advanced packs / a bulk tool behind a paywall.
-
-## Roadmap ideas
+## Roadmap / room for changes
 - [ ] Newsletter capture (turn visitors into an email list)
-- [ ] "Copy count" social proof per prompt
 - [ ] Favourites (localStorage)
-- [ ] More niches (regional languages, specific creator types)
-- [ ] Submit-a-prompt form (community / UGC)
+- [ ] Real affiliate links in `scripts/build-data.mjs` (TOOLS)
+- [ ] More niches / regional languages
+- [ ] Submit-a-prompt form (community)
 
 ---
-
 Made with ❤️ for creators. Prompts work with ChatGPT, Claude & Gemini.
