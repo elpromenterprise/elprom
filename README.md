@@ -1,8 +1,8 @@
 # PromptAdda 🪄
 
-**Free, copy-paste AI prompts for Indian creators.** 300+ fill-in-the-blank prompts
-for captions, Reels, YouTube, selling, ads, brand deals & more. Pick one, fill the
-blanks, copy, paste into ChatGPT / Claude / Gemini.
+**Free, copy-paste AI prompts for Indian creators.** 12,000+ fill-in-the-blank prompts
+for captions, Reels, YouTube, selling, ads, brand deals & more — across 200+ creator &
+business niches. Pick one, fill the blanks, copy, paste into ChatGPT / Claude / Gemini.
 
 Clean minimalist UI · No login · Free forever.
 

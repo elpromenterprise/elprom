@@ -143,7 +143,7 @@ function Hero({ query, setQuery, total }) {
               placeholder="Search “Reel hook”, “Diwali sale”, “caption”…" />
             {query
               ? <button className="pa-search-clear" onClick={() => setQuery('')} aria-label="Clear"><Icon name="close" size={13} /></button>
-              : <kbd className="pa-search-kbd">1300+</kbd>}
+              : <kbd className="pa-search-kbd">10K+</kbd>}
           </div>
 
           <div className="pa-trust">
@@ -162,7 +162,7 @@ function Hero({ query, setQuery, total }) {
 // ── Credibility strip ──────────────────────────────────────────────────────────
 function Stats() {
   const items = [
-    { n: 1300, s: '+', label: 'ready-to-use prompts' },
+    { n: 10000, s: '+', label: 'ready-to-use prompts' },
     { n: 16, s: '', label: 'creator categories' },
     { n: 0, s: '', label: 'logins or sign-ups' },
     { n: 0, s: '', label: 'rupees, forever', prefix: '₹' },
@@ -271,6 +271,8 @@ function App() {
   const [activeCat, setActiveCat] = useState('all');
   const [openPrompt, setOpenPrompt] = useState(null);
   const [scrolled, setScrolled] = useState(false);
+  const PAGE = 60;
+  const [limit, setLimit] = useState(PAGE);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8);
@@ -306,6 +308,10 @@ function App() {
     return scored.map(x => x.p);
   }, [query, activeCat]);
 
+  // reset how many are shown whenever the result set changes
+  useEffect(() => { setLimit(PAGE); }, [query, activeCat]);
+  const visible = filtered.slice(0, limit);
+
   return (
     <div id="top">
       <nav className={'pa-nav' + (scrolled ? ' is-scrolled' : '')}>
@@ -319,7 +325,7 @@ function App() {
         </div>
       </nav>
 
-      <Hero query={query} setQuery={setQuery} total={1300} />
+      <Hero query={query} setQuery={setQuery} total={10000} />
       <Stats />
       <CategoryBar categories={CATEGORIES} counts={counts} active={activeCat} onSelect={setActiveCat} />
 
@@ -342,11 +348,21 @@ function App() {
             </button>
           </div>
         ) : (
-          <div className="pa-grid">
-            {filtered.map((p, i) => (
-              <PromptCard key={p.id} prompt={p} category={catMap[p.cat]} index={i} onOpen={setOpenPrompt} />
-            ))}
-          </div>
+          <>
+            <div className="pa-grid">
+              {visible.map((p, i) => (
+                <PromptCard key={p.id} prompt={p} category={catMap[p.cat]} index={i} onOpen={setOpenPrompt} />
+              ))}
+            </div>
+            {filtered.length > limit && (
+              <div style={{ textAlign: 'center', marginTop: 28 }}>
+                <button className="pa-btn pa-btn-ghost" style={{ display: 'inline-flex', flex: 'none', padding: '0 22px' }}
+                  onClick={() => setLimit(l => l + PAGE)}>
+                  <Icon name="layers" size={15} /> Show more ({filtered.length - limit} left)
+                </button>
+              </div>
+            )}
+          </>
         )}
       </main>
 

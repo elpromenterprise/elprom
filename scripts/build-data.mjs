@@ -79,7 +79,7 @@ const TOOLS = [
 ]
 
 const STEPS = [
-  { emoji: '🔍', title: 'Find a prompt',  text: 'Search or browse 1,000+ prompts by category.' },
+  { emoji: '🔍', title: 'Find a prompt',  text: 'Search or browse 10,000+ prompts by category.' },
   { emoji: '✏️', title: 'Fill the blanks', text: 'Add your product, niche & audience.' },
   { emoji: '📋', title: 'Copy & paste',    text: 'One tap. Paste into ChatGPT, Claude or Gemini.' },
   { emoji: '🚀', title: 'Post & grow',     text: 'Ship content that actually works.' },
@@ -181,7 +181,8 @@ const fillNiche = (s, n) =>
 
 let packCount = 0
 for (const bp of BLUEPRINTS) {
-  for (const n of NICHES) {
+  for (const t of NICHES) {
+    const n = Array.isArray(t) ? { slug: t[0], name: t[1], label: t[2], aud: t[3] } : t
     all.push({
       id: `bp-${bp.id}-${n.slug}`,
       cat: bp.cat,
@@ -215,11 +216,14 @@ const banner = `/* PromptAdda — data layer (AUTO-GENERATED — do not edit by 
    Source: src/data/prompts/*.js   ·   Regenerate: npm run data
    ${all.length} prompts across ${CATEGORIES.length - 1} categories. */`
 
+// Prompts compactly: one object per line (small file, still diff-friendly).
+const promptsJson = '[\n' + all.map((p) => '    ' + JSON.stringify(p)).join(',\n') + '\n  ]'
+
 const body =
   `(function () {\n` +
   `  const CATEGORIES = ${JSON.stringify(CATEGORIES, null, 2)};\n\n` +
   `  const HINTS = ${JSON.stringify(HINTS, null, 2)};\n\n` +
-  `  const PROMPTS = ${JSON.stringify(all, null, 2)};\n\n` +
+  `  const PROMPTS = ${promptsJson};\n\n` +
   `  const TOOLS = ${JSON.stringify(TOOLS, null, 2)};\n\n` +
   `  const STEPS = ${JSON.stringify(STEPS, null, 2)};\n\n` +
   `  window.PA = { CATEGORIES, PROMPTS, HINTS, TOOLS, STEPS };\n` +
