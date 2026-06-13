@@ -1,5 +1,5 @@
 /* PromptAdda — main app */
-const { useState, useEffect, useMemo, useRef } = React;
+const { useState, useEffect, useMemo, useRef, useDeferredValue } = React;
 
 // ── Scroll reveal wrapper ────────────────────────────────────────────────────
 function Reveal({ children, delay = 0, className = '', tag = 'div' }) {
@@ -143,7 +143,7 @@ function Hero({ query, setQuery, total }) {
               placeholder="Search “Reel hook”, “Diwali sale”, “caption”…" />
             {query
               ? <button className="pa-search-clear" onClick={() => setQuery('')} aria-label="Clear"><Icon name="close" size={13} /></button>
-              : <kbd className="pa-search-kbd">10K+</kbd>}
+              : <kbd className="pa-search-kbd">12K+</kbd>}
           </div>
 
           <div className="pa-trust">
@@ -162,7 +162,7 @@ function Hero({ query, setQuery, total }) {
 // ── Credibility strip ──────────────────────────────────────────────────────────
 function Stats() {
   const items = [
-    { n: 10000, s: '+', label: 'ready-to-use prompts' },
+    { n: 12000, s: '+', label: 'ready-to-use prompts' },
     { n: 16, s: '', label: 'creator categories' },
     { n: 0, s: '', label: 'logins or sign-ups' },
     { n: 0, s: '', label: 'rupees, forever', prefix: '₹' },
@@ -266,7 +266,7 @@ function Footer() {
 
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
-  const { CATEGORIES, PROMPTS, TOOLS, STEPS } = window.PA;
+  const { CATEGORIES, PROMPTS, TOOLS, STEPS, HINTS } = window.PA;
   const [query, setQuery] = useState('');
   const [activeCat, setActiveCat] = useState('all');
   const [openPrompt, setOpenPrompt] = useState(null);
@@ -287,30 +287,62 @@ function App() {
     return c;
   }, []);
 
+  // Build a lowercased search index ONCE (not per keystroke) so typing stays
+  // smooth even across 12k+ prompts. Each entry caches what we search against.
+  const searchIndex = useMemo(() => {
+    const hints = HINTS || {};
+    const re = /\[([A-Z0-9_ ]+)\]/g;
+    return PROMPTS.map(p => {
+      const title = p.title.toLowerCase();
+      const tags = p.tags.join(' ').toLowerCase();
+      const cat = catMap[p.cat] ? catMap[p.cat].name.toLowerCase() : '';
+      // also index each blank's example hint (so "diwali" finds [FESTIVAL] prompts,
+      // "hinglish" finds tone blanks, "₹499" finds price blanks, etc.)
+      let hintText = '';
+      const seen = new Set();
+      let m; re.lastIndex = 0;
+      while ((m = re.exec(p.prompt)) !== null) {
+        const tok = m[1];
+        if (seen.has(tok)) continue;
+        seen.add(tok);
+        const h = hints[tok];
+        if (h && h.hint) hintText += ' ' + h.hint;
+      }
+      const hay = title + ' ' + p.desc.toLowerCase() + ' ' + tags + ' ' + cat + ' ' +
+        p.prompt.toLowerCase() + ' ' + hintText.toLowerCase();
+      return { p, title, tags, hay };
+    });
+  }, [catMap]);
+
+  // Defer the heavy filter so the input never lags while you type (React keeps
+  // showing the previous results until the new ones are ready).
+  const deferredQuery = useDeferredValue(query);
+
   const filtered = useMemo(() => {
     // multi-word keyword search across title, description, tags, category AND the
     // full prompt text — every word must match (AND), so "diwali caption" narrows.
-    const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    const words = deferredQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
     const scored = [];
-    PROMPTS.forEach(p => {
-      if (activeCat !== 'all' && p.cat !== activeCat) return;
-      if (!words.length) { scored.push({ p, s: 0 }); return; }
-      const title = p.title.toLowerCase();
-      const tags = p.tags.join(' ').toLowerCase();
-      const hay = title + ' ' + p.desc.toLowerCase() + ' ' + tags + ' ' + catMap[p.cat].name.toLowerCase() + ' ' + p.prompt.toLowerCase();
-      if (!words.every(w => hay.includes(w))) return;
+    for (let i = 0; i < searchIndex.length; i++) {
+      const it = searchIndex[i];
+      if (activeCat !== 'all' && it.p.cat !== activeCat) continue;
+      if (!words.length) { scored.push({ p: it.p, s: 0 }); continue; }
+      let ok = true;
+      for (const w of words) { if (!it.hay.includes(w)) { ok = false; break; } }
+      if (!ok) continue;
       // light relevance score: title/tag hits rank above body-only hits
       let s = 0;
-      words.forEach(w => { if (title.includes(w)) s += 3; if (tags.includes(w)) s += 2; });
-      scored.push({ p, s });
-    });
+      for (const w of words) { if (it.title.includes(w)) s += 3; if (it.tags.includes(w)) s += 2; }
+      scored.push({ p: it.p, s });
+    }
     if (words.length) scored.sort((a, b) => b.s - a.s); // best matches first
     return scored.map(x => x.p);
-  }, [query, activeCat]);
+  }, [deferredQuery, activeCat, searchIndex]);
 
   // reset how many are shown whenever the result set changes
-  useEffect(() => { setLimit(PAGE); }, [query, activeCat]);
+  useEffect(() => { setLimit(PAGE); }, [deferredQuery, activeCat]);
   const visible = filtered.slice(0, limit);
+  const stale = query !== deferredQuery; // true for the brief moment results are catching up
 
   return (
     <div id="top">
@@ -325,7 +357,7 @@ function App() {
         </div>
       </nav>
 
-      <Hero query={query} setQuery={setQuery} total={10000} />
+      <Hero query={query} setQuery={setQuery} total={12000} />
       <Stats />
       <CategoryBar categories={CATEGORIES} counts={counts} active={activeCat} onSelect={setActiveCat} />
 
@@ -349,7 +381,7 @@ function App() {
           </div>
         ) : (
           <>
-            <div className="pa-grid">
+            <div className="pa-grid" style={{ opacity: stale ? 0.55 : 1, transition: 'opacity .15s ease' }}>
               {visible.map((p, i) => (
                 <PromptCard key={p.id} prompt={p} category={catMap[p.cat]} index={i} onOpen={setOpenPrompt} />
               ))}
