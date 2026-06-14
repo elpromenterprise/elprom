@@ -4,6 +4,56 @@ function fmtBig(n) {
   if (n >= 1e3) return Math.round(n / 1e3) + "K";
   return String(n);
 }
+function seededHash(str) {
+  let h = 0;
+  const s = String(str);
+  for (let i = 0; i < s.length; i++) h = Math.imul(31, h) + s.charCodeAt(i) | 0;
+  return Math.abs(h) % 100;
+}
+function loadStreak() {
+  try {
+    const today = (/* @__PURE__ */ new Date()).toDateString();
+    const last = localStorage.getItem("pa_sday");
+    const cnt = parseInt(localStorage.getItem("pa_scnt") || "0", 10);
+    const yesterday = new Date(Date.now() - 864e5).toDateString();
+    const next = last === today ? cnt : last === yesterday ? cnt + 1 : 1;
+    if (last !== today) {
+      localStorage.setItem("pa_sday", today);
+      localStorage.setItem("pa_scnt", String(next));
+    }
+    return next;
+  } catch (e) {
+    return 1;
+  }
+}
+const AI_TOOLS = [
+  { name: "ChatGPT", urlQ: "https://chatgpt.com/?q=", color: "#10A37F", sym: "G" },
+  { name: "Claude", urlQ: "https://claude.ai/new?q=", color: "#D97706", sym: "C" },
+  { name: "Gemini", urlQ: "https://gemini.google.com/app?q=", color: "#4285F4", sym: "\u2726" },
+  { name: "Grok", urlQ: "https://x.com/i/grok?text=", color: "#9333EA", sym: "X" },
+  { name: "Perplexity", urlQ: "https://www.perplexity.ai/?q=", color: "#20B2AA", sym: "P" },
+  { name: "Copilot", urlQ: "https://copilot.microsoft.com/?q=", color: "#0078D4", sym: "M" }
+];
+const PACKS = [
+  { id: "reel-hooks", name: "Reel Hook Starter", emoji: "\u{1F3AF}", desc: "Stop-the-scroll openers for Reels & Shorts", query: "hook reel", cat: "all", free: true, count: 12, color: "#FF6B6B" },
+  { id: "festival", name: "Festival Campaign Kit", emoji: "\u{1FA94}", desc: "Diwali, Holi, Eid, Christmas campaigns", query: "festival diwali holi", cat: "all", free: true, count: 18, color: "#F59E0B" },
+  { id: "starter", name: "First Post Starter", emoji: "\u{1F331}", desc: "For beginners \u2014 fill & post in 2 min", query: "caption beginner", cat: "all", free: true, count: 8, color: "#10B981" },
+  { id: "dtc-ads", name: "D2C Ads Masterkit", emoji: "\u{1F4B0}", desc: "High-converting ad copies for Indian D2C", query: "ad sales product", cat: "all", free: false, price: 99, count: 25, color: "#8B5CF6" },
+  { id: "freelancer", name: "Freelancer Client Pack", emoji: "\u{1F4BC}", desc: "Win clients, proposals, handle objections", query: "client proposal email", cat: "all", free: false, price: 99, count: 20, color: "#3B82F6" },
+  { id: "wedding", name: "Wedding Planner Pro", emoji: "\u{1F48D}", desc: "Captions, ads, pitches for wedding biz", query: "wedding event", cat: "all", free: false, price: 149, count: 30, color: "#EC4899" }
+];
+const SPONSORED_SLOT = {
+  id: "__sponsored_1__",
+  cat: "ads",
+  title: "Design your post in 30 seconds with Canva AI",
+  desc: "Turn any prompt into a ready-to-post design. Sponsored by Canva.",
+  prompt: "Create a professional social media post for [BRAND NAME] about [TOPIC]. Make it visually appealing with [COLOR THEME] and include a clear call-to-action for [GOAL].",
+  tags: ["design", "social", "canva"],
+  isSponsored: true,
+  sponsorName: "Canva",
+  sponsorUrl: "https://canva.com",
+  sponsorCta: "Try Canva Free \u2192"
+};
 function Reveal({ children, delay = 0, className = "", tag = "div" }) {
   const ref = useRef(null);
   const [seen, setSeen] = useState(false);
@@ -28,10 +78,10 @@ function Reveal({ children, delay = 0, className = "", tag = "div" }) {
       });
     }, { threshold: 0.12, rootMargin: "0px 0px -40px 0px" });
     io.observe(el);
-    const fallback = setTimeout(() => setSeen(true), 2e3);
+    const fb = setTimeout(() => setSeen(true), 2e3);
     return () => {
       io.disconnect();
-      clearTimeout(fallback);
+      clearTimeout(fb);
     };
   }, []);
   const Tag = tag;
@@ -54,8 +104,7 @@ function CountUp({ end, suffix = "", dur = 1200 }) {
       const t0 = performance.now();
       const tick = (t) => {
         const p = Math.min(1, (t - t0) / dur);
-        const e2 = 1 - Math.pow(1 - p, 3);
-        setVal(Math.round(end * e2));
+        setVal(Math.round(end * (1 - Math.pow(1 - p, 3))));
         if (p < 1) requestAnimationFrame(tick);
       };
       requestAnimationFrame(tick);
@@ -74,10 +123,10 @@ function CountUp({ end, suffix = "", dur = 1200 }) {
       });
     }, { threshold: 0.5 });
     io.observe(el);
-    const fallback = setTimeout(run, 2200);
+    const fb = setTimeout(run, 2200);
     return () => {
       io.disconnect();
-      clearTimeout(fallback);
+      clearTimeout(fb);
     };
   }, [end]);
   return /* @__PURE__ */ React.createElement("span", { ref }, val, suffix);
@@ -94,103 +143,117 @@ function CopyButton({ text, onCopy, label }) {
     setTimeout(() => setCopied(false), 1400);
     onCopy && onCopy();
   };
-  return /* @__PURE__ */ React.createElement(
+  return /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-ghost pa-copy-btn" + (copied ? " is-copied" : "") + (ripple ? " is-rippling" : ""), onClick }, /* @__PURE__ */ React.createElement(Icon, { name: copied ? "check" : "copy", size: 15 }), copied ? "Copied" : label || "Copy");
+}
+function DailyBanner({ prompt, streak, catMap, onOpen, onDismiss }) {
+  if (!prompt) return null;
+  const cat = catMap[prompt.cat];
+  return /* @__PURE__ */ React.createElement("div", { className: "pa-daily" }, /* @__PURE__ */ React.createElement("div", { className: "pa-daily-inner" }, /* @__PURE__ */ React.createElement("div", { className: "pa-daily-left" }, /* @__PURE__ */ React.createElement("span", { className: "pa-daily-fire" }, "\u{1F525}"), /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("div", { className: "pa-daily-label" }, "Prompt of the Day"), /* @__PURE__ */ React.createElement("div", { className: "pa-daily-streak" }, streak > 1 ? streak + "-day streak" : "Day 1 \u2014 start your streak!"))), /* @__PURE__ */ React.createElement("div", { className: "pa-daily-mid" }, cat && /* @__PURE__ */ React.createElement("span", { className: "pa-daily-cat" }, cat.name), /* @__PURE__ */ React.createElement("span", { className: "pa-daily-title" }, prompt.title)), /* @__PURE__ */ React.createElement("div", { className: "pa-daily-right" }, /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-primary pa-btn-sm", onClick: () => onOpen(prompt) }, "Open \u2192"), /* @__PURE__ */ React.createElement("button", { className: "pa-daily-close", onClick: onDismiss, "aria-label": "Dismiss" }, "\u2715"))));
+}
+function RecentTray({ recent, catMap, onOpen, onClear }) {
+  if (!recent.length) return null;
+  return /* @__PURE__ */ React.createElement("div", { className: "pa-recent-tray" }, /* @__PURE__ */ React.createElement("span", { className: "pa-recent-label" }, "\u23F1 Recent"), /* @__PURE__ */ React.createElement("div", { className: "pa-recent-items" }, recent.map((p) => /* @__PURE__ */ React.createElement("button", { key: p.id, className: "pa-recent-chip", onClick: () => onOpen(p), title: p.title }, /* @__PURE__ */ React.createElement("span", { className: "pa-recent-dot" }), /* @__PURE__ */ React.createElement("span", { className: "pa-recent-text" }, p.title)))), /* @__PURE__ */ React.createElement("button", { className: "pa-recent-clear", onClick: onClear, title: "Clear history" }, "\u2715"));
+}
+function PackCard({ pack, unlocked, onUnlockClick, onActivate }) {
+  const isOpen = pack.free || unlocked;
+  return /* @__PURE__ */ React.createElement("div", { className: "pa-pack-card", style: { "--pack-color": pack.color } }, /* @__PURE__ */ React.createElement("div", { className: "pa-pack-top" }, /* @__PURE__ */ React.createElement("span", { className: "pa-pack-emoji" }, pack.emoji), /* @__PURE__ */ React.createElement("span", { className: "pa-pack-badge" + (pack.free ? " is-free" : "") }, pack.free ? "Free" : "\u20B9" + pack.price)), /* @__PURE__ */ React.createElement("h3", { className: "pa-pack-name" }, pack.name), /* @__PURE__ */ React.createElement("p", { className: "pa-pack-desc" }, pack.desc), /* @__PURE__ */ React.createElement("div", { className: "pa-pack-count" }, /* @__PURE__ */ React.createElement("span", { className: "pa-pack-dot" }), " ", pack.count, " prompts"), isOpen ? /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-primary", style: { width: "100%", marginTop: "auto" }, onClick: () => onActivate(pack) }, "Explore Pack \u2192") : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "pa-pack-lock" }, "\u{1F512} Premium Pack"), /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-primary", style: { width: "100%" }, onClick: () => onUnlockClick(pack) }, "Unlock for \u20B9" + pack.price)));
+}
+function PacksView({ packs, unlocked, onUnlockClick, onActivate, onBack }) {
+  return /* @__PURE__ */ React.createElement("div", { className: "pa-packs-section" }, /* @__PURE__ */ React.createElement("div", { className: "pa-packs-head" }, /* @__PURE__ */ React.createElement("button", { className: "pa-back-btn", onClick: onBack }, "\u2190 Back to prompts"), /* @__PURE__ */ React.createElement("h2", { className: "pa-packs-title" }, "Prompt Collections"), /* @__PURE__ */ React.createElement("p", { className: "pa-packs-sub" }, "Curated packs for specific goals. Free packs open instantly \u2014 no sign-up.")), /* @__PURE__ */ React.createElement("div", { className: "pa-packs-grid" }, packs.map((pack) => /* @__PURE__ */ React.createElement(PackCard, { key: pack.id, pack, unlocked: unlocked.has(pack.id), onUnlockClick, onActivate }))));
+}
+function PackUnlockModal({ pack, onClose, onUnlocked }) {
+  const TIP_UPI = "vaibhavvarunmr@okicici";
+  const [phase, setPhase] = useState("pay");
+  const [txnId, setTxnId] = useState("");
+  const [cpd, setCpd] = useState(false);
+  function copyUPI() {
+    navigator.clipboard?.writeText(TIP_UPI);
+    setCpd(true);
+    setTimeout(() => setCpd(false), 1800);
+  }
+  function handlePay() {
+    window.location.href = "upi://pay?pa=" + TIP_UPI + "&pn=PromptUndo&am=" + pack.price + "&cu=INR&tn=Unlock%20" + encodeURIComponent(pack.name);
+  }
+  function handleVerify() {
+    if (!txnId.trim()) return;
+    setPhase("verifying");
+    setTimeout(() => {
+      setPhase("done");
+      onUnlocked(pack.id);
+    }, 2e3);
+  }
+  return /* @__PURE__ */ React.createElement("div", { className: "tip-backdrop", onClick: onClose }, /* @__PURE__ */ React.createElement("div", { className: "tip-card", onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("button", { className: "tip-close", onClick: onClose }, "\u2715"), phase === "pay" && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "tip-header" }, /* @__PURE__ */ React.createElement("span", { className: "tip-emoji" }, pack.emoji), /* @__PURE__ */ React.createElement("h2", null, "Unlock " + pack.name), /* @__PURE__ */ React.createElement("p", null, pack.desc)), /* @__PURE__ */ React.createElement("div", { className: "pa-unlock-meta" }, "\u20B9" + pack.price + " \xB7 One-time \xB7 Unlock forever \xB7 " + pack.count + " prompts"), /* @__PURE__ */ React.createElement("button", { className: "tip-pay-btn", onClick: handlePay }, "Pay \u20B9" + pack.price + " via UPI"), /* @__PURE__ */ React.createElement("div", { className: "tip-upi-row", style: { marginTop: 14 } }, /* @__PURE__ */ React.createElement("div", { className: "tip-upi-box" }, /* @__PURE__ */ React.createElement("span", { className: "tip-upi-label" }, "UPI ID"), /* @__PURE__ */ React.createElement("span", { className: "tip-upi-value" }, TIP_UPI), /* @__PURE__ */ React.createElement("button", { className: "tip-copy-btn", onClick: copyUPI }, cpd ? "\u2713" : "Copy"))), /* @__PURE__ */ React.createElement("div", { className: "pa-txn-row" }, /* @__PURE__ */ React.createElement("input", { className: "pa-input", placeholder: "Enter UPI transaction ID after paying", value: txnId, onChange: (e) => setTxnId(e.target.value), style: { flex: 1 } }), /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-primary", onClick: handleVerify, disabled: !txnId.trim() }, "Verify")), /* @__PURE__ */ React.createElement("p", { className: "tip-fine" }, "Pay \u2192 come back \u2192 paste transaction ID \u2192 unlock instantly")), phase === "verifying" && /* @__PURE__ */ React.createElement("div", { className: "pa-unlock-verifying" }, /* @__PURE__ */ React.createElement("div", { className: "pa-spinner" }), /* @__PURE__ */ React.createElement("p", null, "Verifying payment...")), phase === "done" && /* @__PURE__ */ React.createElement("div", { className: "pa-unlock-done" }, /* @__PURE__ */ React.createElement("span", { className: "pa-unlock-check" }, "\u2705"), /* @__PURE__ */ React.createElement("h2", null, pack.name + " unlocked!"), /* @__PURE__ */ React.createElement("p", null, "All " + pack.count + " prompts are now available to you forever."), /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-primary", style: { display: "inline-flex", flex: "none", padding: "0 28px", marginTop: 20 }, onClick: onClose }, "Explore Pack \u2192"))));
+}
+function BadgeModal({ onClose }) {
+  const [copied, setCopied] = useState(false);
+  const siteUrl = "https://prompt-engineer-sage.vercel.app";
+  const code = '<a href="' + siteUrl + '" target="_blank" rel="noopener"><img src="' + siteUrl + '/badge.svg" alt="Made with PromptUndo" height="24" /></a>';
+  function copyCode() {
+    navigator.clipboard?.writeText(code);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1800);
+  }
+  return /* @__PURE__ */ React.createElement("div", { className: "tip-backdrop", onClick: onClose }, /* @__PURE__ */ React.createElement("div", { className: "tip-card", style: { maxWidth: 460 }, onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("button", { className: "tip-close", onClick: onClose }, "\u2715"), /* @__PURE__ */ React.createElement("div", { className: "tip-header" }, /* @__PURE__ */ React.createElement("span", { className: "tip-emoji" }, "\u{1F3F7}\uFE0F"), /* @__PURE__ */ React.createElement("h2", null, "Built with PromptUndo"), /* @__PURE__ */ React.createElement("p", null, "Add this badge to your website, portfolio, or client deliverables.")), /* @__PURE__ */ React.createElement("div", { className: "pa-badge-preview" }, /* @__PURE__ */ React.createElement("span", { className: "pa-badge-widget" }, "\u26A1 Made with PromptUndo")), /* @__PURE__ */ React.createElement("pre", { className: "pa-badge-code" }, code), /* @__PURE__ */ React.createElement(
     "button",
     {
-      className: "pa-btn pa-btn-ghost pa-copy-btn" + (copied ? " is-copied" : "") + (ripple ? " is-rippling" : ""),
-      onClick
+      className: "pa-btn pa-btn-primary" + (copied ? " is-copied" : ""),
+      onClick: copyCode,
+      style: { width: "100%", marginTop: 14 }
     },
     /* @__PURE__ */ React.createElement(Icon, { name: copied ? "check" : "copy", size: 15 }),
-    label ? copied ? "Copied" : label : copied ? "Copied" : "Copy"
-  );
+    copied ? "Copied!" : "Copy embed code"
+  ), /* @__PURE__ */ React.createElement("p", { className: "tip-fine" }, "This badge links back to PromptUndo \u2014 helps us grow and stay free \u{1F64F}")));
 }
-const AI_TOOLS = [
-  { name: "ChatGPT", url: "https://chatgpt.com/", color: "#10A37F", sym: "G" },
-  { name: "Claude", url: "https://claude.ai/", color: "#D97706", sym: "C" },
-  { name: "Gemini", url: "https://gemini.google.com/", color: "#4285F4", sym: "\u2726" },
-  { name: "Grok", url: "https://x.com/i/grok", color: "#9333EA", sym: "X" },
-  { name: "Perplexity", url: "https://www.perplexity.ai/", color: "#20B2AA", sym: "P" },
-  { name: "Copilot", url: "https://copilot.microsoft.com/", color: "#0078D4", sym: "M" }
-];
 function PromptCard({ prompt, category, index, onOpen, isSaved, onSave, onCopy }) {
   const blanks = prompt.prompt.match(/\[([A-Z0-9_ ]+)\]/g) || [];
   const count = new Set(blanks.map((b) => b.replace(/[\[\]]/g, "").trim())).size;
   const wordCount = prompt.prompt.trim().split(/\s+/).length;
+  const score = seededHash(prompt.id);
+  const popBadge = score > 85 ? "trending" : score > 68 ? "popular" : null;
   const [showAI, setShowAI] = useState(false);
   const aiRef = useRef(null);
   useEffect(() => {
     if (!showAI) return;
-    function onOut(e) {
+    const onOut = (e) => {
       if (aiRef.current && !aiRef.current.contains(e.target)) setShowAI(false);
-    }
+    };
     document.addEventListener("mousedown", onOut);
     return () => document.removeEventListener("mousedown", onOut);
   }, [showAI]);
-  function launchAI(url, name) {
-    navigator.clipboard?.writeText(prompt.prompt);
-    window.open(url, "_blank", "noopener,noreferrer");
-    onCopy && onCopy("Copied! Paste in " + name + " \u2197");
+  function launchAI(tool) {
+    const encoded = encodeURIComponent(prompt.prompt);
+    window.open(tool.urlQ + encoded, "_blank", "noopener,noreferrer");
+    onCopy && onCopy("Opened " + tool.name + " \u2014 prompt auto-filled \u2197");
     setShowAI(false);
   }
-  return /* @__PURE__ */ React.createElement(Reveal, { delay: index % 9 * 55 }, /* @__PURE__ */ React.createElement("article", { className: "pa-card", onClick: () => onOpen(prompt) }, /* @__PURE__ */ React.createElement("div", { className: "pa-card-top" }, /* @__PURE__ */ React.createElement("span", { className: "pa-cat-chip" }, /* @__PURE__ */ React.createElement("span", { className: "pa-cat-chip-icon" }, /* @__PURE__ */ React.createElement(Icon, { name: category.id, size: 15 })), category.name), /* @__PURE__ */ React.createElement("div", { className: "pa-card-top-right" }, /* @__PURE__ */ React.createElement("span", { className: "pa-blanks-tag" }, /* @__PURE__ */ React.createElement(Icon, { name: "brackets", size: 12 }), " ", count), /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      className: "pa-save-btn" + (isSaved ? " is-saved" : ""),
-      onClick: (e) => {
-        e.stopPropagation();
-        onSave(prompt);
-      },
-      title: isSaved ? "Remove from saved" : "Save prompt",
-      "aria-label": isSaved ? "Unsave" : "Save"
-    },
-    isSaved ? "\u2665" : "\u2661"
-  ))), /* @__PURE__ */ React.createElement("h3", { className: "pa-card-title" }, prompt.title), /* @__PURE__ */ React.createElement("p", { className: "pa-card-desc" }, prompt.desc), /* @__PURE__ */ React.createElement("div", { className: "pa-card-preview" }, /* @__PURE__ */ React.createElement("span", { className: "pa-card-preview-label" }, "PROMPT"), prompt.prompt), /* @__PURE__ */ React.createElement("div", { className: "pa-card-footer" }, /* @__PURE__ */ React.createElement("div", { className: "pa-card-tags" }, prompt.tags.slice(0, 3).map((t) => /* @__PURE__ */ React.createElement("span", { key: t, className: "pa-tag" }, "#", t))), /* @__PURE__ */ React.createElement("span", { className: "pa-word-count" }, wordCount, "w")), /* @__PURE__ */ React.createElement("div", { className: "pa-card-actions" }, /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-primary", onClick: (e) => {
+  function sharePrompt(e) {
+    e.stopPropagation();
+    const text = prompt.title + "\n\n" + prompt.prompt + "\n\nGet 12K+ free AI prompts \u2192 prompt-engineer-sage.vercel.app";
+    if (navigator.share) {
+      navigator.share({ title: prompt.title, text }).catch(() => {
+      });
+    } else {
+      window.open("https://wa.me/?text=" + encodeURIComponent(text), "_blank", "noopener");
+      onCopy && onCopy("Opening WhatsApp \u2197");
+    }
+  }
+  if (prompt.isSponsored) {
+    return /* @__PURE__ */ React.createElement(Reveal, { delay: index % 9 * 55 }, /* @__PURE__ */ React.createElement("a", { className: "pa-card pa-card-sponsored", href: prompt.sponsorUrl, target: "_blank", rel: "noopener noreferrer sponsored" }, /* @__PURE__ */ React.createElement("div", { className: "pa-card-top" }, /* @__PURE__ */ React.createElement("span", { className: "pa-sponsored-label" }, "Sponsored \xB7 " + prompt.sponsorName)), /* @__PURE__ */ React.createElement("h3", { className: "pa-card-title" }, prompt.title), /* @__PURE__ */ React.createElement("p", { className: "pa-card-desc" }, prompt.desc), /* @__PURE__ */ React.createElement("div", { className: "pa-card-preview" }, /* @__PURE__ */ React.createElement("span", { className: "pa-card-preview-label" }, "SAMPLE PROMPT"), prompt.prompt), /* @__PURE__ */ React.createElement("div", { className: "pa-card-actions", style: { marginTop: "auto", paddingTop: 14 } }, /* @__PURE__ */ React.createElement("span", { className: "pa-btn pa-btn-primary", style: { flex: 1, justifyContent: "center" } }, prompt.sponsorCta))));
+  }
+  return /* @__PURE__ */ React.createElement(Reveal, { delay: index % 9 * 55 }, /* @__PURE__ */ React.createElement("article", { className: "pa-card", onClick: () => onOpen(prompt) }, /* @__PURE__ */ React.createElement("div", { className: "pa-card-top" }, /* @__PURE__ */ React.createElement("span", { className: "pa-cat-chip" }, /* @__PURE__ */ React.createElement("span", { className: "pa-cat-chip-icon" }, /* @__PURE__ */ React.createElement(Icon, { name: category.id, size: 15 })), category.name), /* @__PURE__ */ React.createElement("div", { className: "pa-card-top-right" }, popBadge && /* @__PURE__ */ React.createElement("span", { className: "pa-pop-badge is-" + popBadge }, popBadge === "trending" ? "\u{1F525} Trending" : "\u26A1 Popular"), /* @__PURE__ */ React.createElement("span", { className: "pa-blanks-tag" }, /* @__PURE__ */ React.createElement(Icon, { name: "brackets", size: 12 }), " ", count), /* @__PURE__ */ React.createElement("button", { className: "pa-save-btn" + (isSaved ? " is-saved" : ""), onClick: (e) => {
+    e.stopPropagation();
+    onSave(prompt);
+  }, title: isSaved ? "Unsave" : "Save" }, isSaved ? "\u2665" : "\u2661"), /* @__PURE__ */ React.createElement("button", { className: "pa-share-btn", onClick: sharePrompt, title: "Share prompt" }, "\u2197"))), /* @__PURE__ */ React.createElement("h3", { className: "pa-card-title" }, prompt.title), /* @__PURE__ */ React.createElement("p", { className: "pa-card-desc" }, prompt.desc), /* @__PURE__ */ React.createElement("div", { className: "pa-card-preview" }, /* @__PURE__ */ React.createElement("span", { className: "pa-card-preview-label" }, "PROMPT"), prompt.prompt), /* @__PURE__ */ React.createElement("div", { className: "pa-card-footer" }, /* @__PURE__ */ React.createElement("div", { className: "pa-card-tags" }, prompt.tags.slice(0, 3).map((t) => /* @__PURE__ */ React.createElement("span", { key: t, className: "pa-tag" }, "#" + t))), /* @__PURE__ */ React.createElement("span", { className: "pa-word-count" }, wordCount, "w")), /* @__PURE__ */ React.createElement("div", { className: "pa-card-actions" }, /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-primary", onClick: (e) => {
     e.stopPropagation();
     onOpen(prompt);
-  } }, /* @__PURE__ */ React.createElement(Icon, { name: "wand", size: 15 }), " Customize"), /* @__PURE__ */ React.createElement(CopyButton, { text: prompt.prompt, onCopy: () => onCopy && onCopy("Prompt copied \u2713") }), /* @__PURE__ */ React.createElement("div", { className: "pa-ai-wrap", ref: aiRef, onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      className: "pa-btn pa-ai-btn" + (showAI ? " is-open" : ""),
-      onClick: () => setShowAI((v) => !v),
-      title: "Try in an AI tool"
-    },
-    "\u2726 Try AI",
-    " ",
-    /* @__PURE__ */ React.createElement("span", { className: "pa-ai-chevron" }, "\u25BE")
-  ), showAI && /* @__PURE__ */ React.createElement("div", { className: "pa-ai-dropdown" }, AI_TOOLS.map((t) => /* @__PURE__ */ React.createElement("button", { key: t.name, className: "pa-ai-option", onClick: () => launchAI(t.url, t.name) }, /* @__PURE__ */ React.createElement("span", { className: "pa-ai-dot", style: { background: t.color + "22", color: t.color } }, t.sym), t.name)))))));
+  } }, /* @__PURE__ */ React.createElement(Icon, { name: "wand", size: 15 }), " ", "Customize"), /* @__PURE__ */ React.createElement(CopyButton, { text: prompt.prompt, onCopy: () => onCopy && onCopy("Prompt copied \u2713") }), /* @__PURE__ */ React.createElement("div", { className: "pa-ai-wrap", ref: aiRef, onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-ai-btn" + (showAI ? " is-open" : ""), onClick: () => setShowAI((v) => !v) }, "\u2726 Try AI", " ", /* @__PURE__ */ React.createElement("span", { className: "pa-ai-chevron" }, "\u25BE")), showAI && /* @__PURE__ */ React.createElement("div", { className: "pa-ai-dropdown" }, AI_TOOLS.map((t) => /* @__PURE__ */ React.createElement("button", { key: t.name, className: "pa-ai-option", onClick: () => launchAI(t) }, /* @__PURE__ */ React.createElement("span", { className: "pa-ai-dot", style: { background: t.color + "22", color: t.color } }, t.sym), t.name)))))));
 }
 function CategoryBar({ categories, counts, active, onSelect }) {
   return /* @__PURE__ */ React.createElement("div", { className: "pa-catbar" }, /* @__PURE__ */ React.createElement("div", { className: "pa-catbar-inner" }, categories.map((c) => /* @__PURE__ */ React.createElement("button", { key: c.id, className: "pa-pill" + (active === c.id ? " is-active" : ""), onClick: () => onSelect(c.id) }, /* @__PURE__ */ React.createElement(Icon, { name: c.id, size: 15, className: "pa-pill-icon" }), /* @__PURE__ */ React.createElement("span", null, c.name), /* @__PURE__ */ React.createElement("span", { className: "pa-pill-count" }, fmtBig(counts[c.id] || 0))))));
 }
 function Hero({ query, setQuery, totalLabel, categories, activeCat, onSetCat, searchRef, onSearchKey }) {
   const chips = ["Free forever", "No login", "Hinglish-friendly", "\u20B90"];
-  return /* @__PURE__ */ React.createElement("header", { className: "pa-hero" }, /* @__PURE__ */ React.createElement("div", { className: "pa-aurora" }, /* @__PURE__ */ React.createElement("span", { className: "pa-aurora-a" }), /* @__PURE__ */ React.createElement("span", { className: "pa-aurora-b" }), /* @__PURE__ */ React.createElement("span", { className: "pa-aurora-c" })), /* @__PURE__ */ React.createElement("div", { className: "pa-hero-inner" }, /* @__PURE__ */ React.createElement("div", { className: "pa-hero-copy" }, /* @__PURE__ */ React.createElement("span", { className: "pa-eyebrow" }, /* @__PURE__ */ React.createElement(Icon, { name: "spark", size: 13 }), " ", /* @__PURE__ */ React.createElement("strong", { style: { fontWeight: 700 } }, totalLabel, "+"), "\xA0free prompts \xB7 no sign-up"), /* @__PURE__ */ React.createElement("h1", { className: "pa-hero-title" }, "Stop fighting with AI.", /* @__PURE__ */ React.createElement("br", null), /* @__PURE__ */ React.createElement("span", { className: "pa-hero-title-2" }, "Just copy a prompt that works.")), /* @__PURE__ */ React.createElement("p", { className: "pa-hero-sub" }, "A free library of fill-in-the-blank AI prompts for India's creators and small businesses. Pick one, add your details, copy, paste into ChatGPT, Claude or Gemini. That's the whole thing."), /* @__PURE__ */ React.createElement("div", { className: "pa-search" }, /* @__PURE__ */ React.createElement("span", { className: "pa-search-icon" }, /* @__PURE__ */ React.createElement(Icon, { name: "search", size: 20 })), /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      ref: searchRef,
-      className: "pa-search-input",
-      value: query,
-      onChange: (e) => setQuery(e.target.value),
-      onKeyDown: onSearchKey,
-      placeholder: 'Search "Reel hook", "Diwali sale", "caption"...',
-      "aria-label": "Search prompts"
-    }
-  ), query ? /* @__PURE__ */ React.createElement("button", { className: "pa-search-clear", onClick: () => setQuery(""), "aria-label": "Clear search" }, /* @__PURE__ */ React.createElement(Icon, { name: "close", size: 13 })) : /* @__PURE__ */ React.createElement("kbd", { className: "pa-search-kbd" }, "/ to search")), /* @__PURE__ */ React.createElement("div", { className: "pa-quick-cats", role: "group", "aria-label": "Quick category filter" }, /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      className: "pa-quick-cat" + (activeCat === "all" ? " is-active" : ""),
-      onClick: () => onSetCat("all")
-    },
-    "All"
-  ), categories.filter((c) => c.id !== "all").map((c) => /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      key: c.id,
-      className: "pa-quick-cat" + (activeCat === c.id ? " is-active" : ""),
-      onClick: () => onSetCat(c.id)
-    },
-    c.name
-  ))), /* @__PURE__ */ React.createElement("div", { className: "pa-trust" }, chips.map((c, i) => /* @__PURE__ */ React.createElement("span", { key: c, className: "pa-trust-chip" }, /* @__PURE__ */ React.createElement(Icon, { name: TRUST_ICON[i], size: 14 }), c)))), /* @__PURE__ */ React.createElement("div", { className: "pa-hero-demo" }, /* @__PURE__ */ React.createElement(HeroDemo, null))));
+  return /* @__PURE__ */ React.createElement("header", { className: "pa-hero" }, /* @__PURE__ */ React.createElement("div", { className: "pa-aurora" }, /* @__PURE__ */ React.createElement("span", { className: "pa-aurora-a" }), /* @__PURE__ */ React.createElement("span", { className: "pa-aurora-b" }), /* @__PURE__ */ React.createElement("span", { className: "pa-aurora-c" })), /* @__PURE__ */ React.createElement("div", { className: "pa-hero-inner" }, /* @__PURE__ */ React.createElement("div", { className: "pa-hero-copy" }, /* @__PURE__ */ React.createElement("span", { className: "pa-eyebrow" }, /* @__PURE__ */ React.createElement(Icon, { name: "spark", size: 13 }), " ", /* @__PURE__ */ React.createElement("strong", { style: { fontWeight: 700 } }, totalLabel, "+"), "\xA0", "free prompts \xB7 no sign-up"), /* @__PURE__ */ React.createElement("h1", { className: "pa-hero-title" }, "Stop fighting with AI.", /* @__PURE__ */ React.createElement("br", null), /* @__PURE__ */ React.createElement("span", { className: "pa-hero-title-2" }, "Just copy a prompt that works.")), /* @__PURE__ */ React.createElement("p", { className: "pa-hero-sub" }, "A free library of fill-in-the-blank AI prompts for India's creators and small businesses. Pick one, add your details, copy, paste. That's it."), /* @__PURE__ */ React.createElement("div", { className: "pa-search" }, /* @__PURE__ */ React.createElement("span", { className: "pa-search-icon" }, /* @__PURE__ */ React.createElement(Icon, { name: "search", size: 20 })), /* @__PURE__ */ React.createElement("input", { ref: searchRef, className: "pa-search-input", value: query, onChange: (e) => setQuery(e.target.value), onKeyDown: onSearchKey, placeholder: 'Search "Reel hook", "Diwali sale", "caption"...', "aria-label": "Search prompts" }), query ? /* @__PURE__ */ React.createElement("button", { className: "pa-search-clear", onClick: () => setQuery(""), "aria-label": "Clear" }, /* @__PURE__ */ React.createElement(Icon, { name: "close", size: 13 })) : /* @__PURE__ */ React.createElement("kbd", { className: "pa-search-kbd" }, "/ to search")), /* @__PURE__ */ React.createElement("div", { className: "pa-quick-cats", role: "group", "aria-label": "Quick category filter" }, /* @__PURE__ */ React.createElement("button", { className: "pa-quick-cat" + (activeCat === "all" ? " is-active" : ""), onClick: () => onSetCat("all") }, "All"), categories.filter((c) => c.id !== "all").map((c) => /* @__PURE__ */ React.createElement("button", { key: c.id, className: "pa-quick-cat" + (activeCat === c.id ? " is-active" : ""), onClick: () => onSetCat(c.id) }, c.name))), /* @__PURE__ */ React.createElement("div", { className: "pa-trust" }, chips.map((c, i) => /* @__PURE__ */ React.createElement("span", { key: c, className: "pa-trust-chip" }, /* @__PURE__ */ React.createElement(Icon, { name: TRUST_ICON[i], size: 14 }), c)))), /* @__PURE__ */ React.createElement("div", { className: "pa-hero-demo" }, /* @__PURE__ */ React.createElement(HeroDemo, null))));
 }
 function Stats() {
   const items = [
@@ -202,13 +265,13 @@ function Stats() {
   return /* @__PURE__ */ React.createElement(Reveal, null, /* @__PURE__ */ React.createElement("div", { className: "pa-stats" }, items.map((it, i) => /* @__PURE__ */ React.createElement("div", { className: "pa-stat", key: i }, /* @__PURE__ */ React.createElement("span", { className: "pa-stat-n" }, it.prefix || "", /* @__PURE__ */ React.createElement(CountUp, { end: it.n, suffix: it.s })), /* @__PURE__ */ React.createElement("span", { className: "pa-stat-l" }, it.label)))));
 }
 function HowItWorks({ steps }) {
-  return /* @__PURE__ */ React.createElement("section", { className: "pa-section pa-section-tint", id: "how" }, /* @__PURE__ */ React.createElement(Reveal, null, /* @__PURE__ */ React.createElement("div", { className: "pa-section-head" }, /* @__PURE__ */ React.createElement("span", { className: "pa-kicker" }, "The flow"), /* @__PURE__ */ React.createElement("h2", { className: "pa-section-title" }, "From blank page to posted in four steps"), /* @__PURE__ */ React.createElement("p", { className: "pa-section-sub" }, "No prompt-engineering degree required."))), /* @__PURE__ */ React.createElement("div", { className: "pa-steps" }, steps.map((s, i) => /* @__PURE__ */ React.createElement(Reveal, { key: i, delay: i * 80 }, /* @__PURE__ */ React.createElement("div", { className: "pa-step" }, /* @__PURE__ */ React.createElement("div", { className: "pa-step-num" }, "0", i + 1), /* @__PURE__ */ React.createElement("div", { className: "pa-step-icon" }, /* @__PURE__ */ React.createElement(Icon, { name: STEP_ICON[i], size: 22 })), /* @__PURE__ */ React.createElement("h3", { className: "pa-step-title" }, s.title), /* @__PURE__ */ React.createElement("p", { className: "pa-step-text" }, s.text))))));
+  return /* @__PURE__ */ React.createElement("section", { className: "pa-section pa-section-tint", id: "how" }, /* @__PURE__ */ React.createElement(Reveal, null, /* @__PURE__ */ React.createElement("div", { className: "pa-section-head" }, /* @__PURE__ */ React.createElement("span", { className: "pa-kicker" }, "The flow"), /* @__PURE__ */ React.createElement("h2", { className: "pa-section-title" }, "From blank page to posted in four steps"), /* @__PURE__ */ React.createElement("p", { className: "pa-section-sub" }, "No prompt-engineering degree required."))), /* @__PURE__ */ React.createElement("div", { className: "pa-steps" }, steps.map((s, i) => /* @__PURE__ */ React.createElement(Reveal, { key: i, delay: i * 80 }, /* @__PURE__ */ React.createElement("div", { className: "pa-step" }, /* @__PURE__ */ React.createElement("div", { className: "pa-step-num" }, "0" + (i + 1)), /* @__PURE__ */ React.createElement("div", { className: "pa-step-icon" }, /* @__PURE__ */ React.createElement(Icon, { name: STEP_ICON[i], size: 22 })), /* @__PURE__ */ React.createElement("h3", { className: "pa-step-title" }, s.title), /* @__PURE__ */ React.createElement("p", { className: "pa-step-text" }, s.text))))));
 }
 function Tools({ tools }) {
   return /* @__PURE__ */ React.createElement("section", { className: "pa-section", id: "tools" }, /* @__PURE__ */ React.createElement(Reveal, null, /* @__PURE__ */ React.createElement("div", { className: "pa-section-head" }, /* @__PURE__ */ React.createElement("span", { className: "pa-kicker" }, "The kit"), /* @__PURE__ */ React.createElement("h2", { className: "pa-section-title" }, "Tools we'd actually recommend"), /* @__PURE__ */ React.createElement("p", { className: "pa-section-sub" }, "Everything you need to make, sell, and grow."))), /* @__PURE__ */ React.createElement("div", { className: "pa-tools" }, tools.map((t, i) => /* @__PURE__ */ React.createElement(Reveal, { key: t.name, delay: i % 3 * 70 }, /* @__PURE__ */ React.createElement("a", { className: "pa-tool", href: t.url, target: "_blank", rel: "noopener noreferrer" }, /* @__PURE__ */ React.createElement("div", { className: "pa-tool-icon" }, /* @__PURE__ */ React.createElement(Icon, { name: TOOL_ICON[t.name] || "spark", size: 22 })), /* @__PURE__ */ React.createElement("div", { className: "pa-tool-main" }, /* @__PURE__ */ React.createElement("div", { className: "pa-tool-top" }, /* @__PURE__ */ React.createElement("span", { className: "pa-tool-name" }, t.name), /* @__PURE__ */ React.createElement("span", { className: "pa-tool-badge" }, t.badge)), /* @__PURE__ */ React.createElement("p", { className: "pa-tool-blurb" }, t.blurb)), /* @__PURE__ */ React.createElement("span", { className: "pa-tool-arrow" }, /* @__PURE__ */ React.createElement(Icon, { name: "arrowUpRight", size: 16 })))))), /* @__PURE__ */ React.createElement("p", { className: "pa-tools-note" }, "Some links are affiliate links \u2014 they keep PromptUndo free forever, at no cost to you."));
 }
-function Footer() {
-  return /* @__PURE__ */ React.createElement("footer", { className: "pa-footer" }, /* @__PURE__ */ React.createElement("div", { className: "pa-footer-inner" }, /* @__PURE__ */ React.createElement("div", { className: "pa-footer-brand" }, /* @__PURE__ */ React.createElement("div", { className: "pa-logo" }, /* @__PURE__ */ React.createElement("span", { className: "pa-logo-mark" }, /* @__PURE__ */ React.createElement(Icon, { name: "spark", size: 16 })), " PromptUndo"), /* @__PURE__ */ React.createElement("p", { className: "pa-footer-mission" }, "A free, forever-open library of AI prompts for India's creators and small businesses.")), /* @__PURE__ */ React.createElement("div", { className: "pa-footer-col" }, /* @__PURE__ */ React.createElement("span", { className: "pa-footer-h" }, "Explore"), /* @__PURE__ */ React.createElement("a", { href: "#top" }, "All prompts"), /* @__PURE__ */ React.createElement("a", { href: "#how" }, "How it works"), /* @__PURE__ */ React.createElement("a", { href: "#tools" }, "Tools")), /* @__PURE__ */ React.createElement("div", { className: "pa-footer-col" }, /* @__PURE__ */ React.createElement("span", { className: "pa-footer-h" }, "The promise"), /* @__PURE__ */ React.createElement("span", { className: "pa-footer-promise" }, /* @__PURE__ */ React.createElement(Icon, { name: "infinity", size: 15 }), " Free forever"), /* @__PURE__ */ React.createElement("span", { className: "pa-footer-promise" }, /* @__PURE__ */ React.createElement(Icon, { name: "shield", size: 15 }), " No sign-up, no email wall"), /* @__PURE__ */ React.createElement("span", { className: "pa-footer-promise" }, /* @__PURE__ */ React.createElement(TriFlag, { w: 17 }), " Made in India"))), /* @__PURE__ */ React.createElement("div", { className: "pa-footer-bar" }, "\xA9 2026 PromptUndo \xB7 Copy, fill, paste, done."));
+function Footer({ onBadge }) {
+  return /* @__PURE__ */ React.createElement("footer", { className: "pa-footer" }, /* @__PURE__ */ React.createElement("div", { className: "pa-footer-inner" }, /* @__PURE__ */ React.createElement("div", { className: "pa-footer-brand" }, /* @__PURE__ */ React.createElement("div", { className: "pa-logo" }, /* @__PURE__ */ React.createElement("span", { className: "pa-logo-mark" }, /* @__PURE__ */ React.createElement(Icon, { name: "spark", size: 16 })), " PromptUndo"), /* @__PURE__ */ React.createElement("p", { className: "pa-footer-mission" }, "A free, forever-open library of AI prompts for India's creators and small businesses."), /* @__PURE__ */ React.createElement("button", { className: "pa-badge-link", onClick: onBadge }, '\u{1F3F7}\uFE0F Add "Made with PromptUndo" badge')), /* @__PURE__ */ React.createElement("div", { className: "pa-footer-col" }, /* @__PURE__ */ React.createElement("span", { className: "pa-footer-h" }, "Explore"), /* @__PURE__ */ React.createElement("a", { href: "#top" }, "All prompts"), /* @__PURE__ */ React.createElement("a", { href: "#how" }, "How it works"), /* @__PURE__ */ React.createElement("a", { href: "#tools" }, "Tools")), /* @__PURE__ */ React.createElement("div", { className: "pa-footer-col" }, /* @__PURE__ */ React.createElement("span", { className: "pa-footer-h" }, "The promise"), /* @__PURE__ */ React.createElement("span", { className: "pa-footer-promise" }, /* @__PURE__ */ React.createElement(Icon, { name: "infinity", size: 15 }), "Free forever"), /* @__PURE__ */ React.createElement("span", { className: "pa-footer-promise" }, /* @__PURE__ */ React.createElement(Icon, { name: "shield", size: 15 }), "No sign-up, no email wall"), /* @__PURE__ */ React.createElement("span", { className: "pa-footer-promise" }, /* @__PURE__ */ React.createElement(TriFlag, { w: 17 }), "Made in India"))), /* @__PURE__ */ React.createElement("div", { className: "pa-footer-bar" }, "\xA9 2026 PromptUndo \xB7 Copy, fill, paste, done."));
 }
 function App() {
   const pa = window.PA || {};
@@ -261,6 +324,79 @@ function App() {
       return next;
     });
   }
+  const [streak] = useState(() => loadStreak());
+  const [dailyDismissed, setDailyDismissed] = useState(() => {
+    try {
+      return localStorage.getItem("pa_ddm") === (/* @__PURE__ */ new Date()).toDateString();
+    } catch (e) {
+      return false;
+    }
+  });
+  function dismissDaily() {
+    try {
+      localStorage.setItem("pa_ddm", (/* @__PURE__ */ new Date()).toDateString());
+    } catch (e) {
+    }
+    setDailyDismissed(true);
+  }
+  const dailyPrompt = useMemo(() => {
+    if (!PROMPTS.length) return null;
+    const seed = Math.floor(Date.now() / 864e5);
+    return PROMPTS[seed % PROMPTS.length];
+  }, [PROMPTS]);
+  const [recentPrompts, setRecentPrompts] = useState(() => {
+    try {
+      return JSON.parse(localStorage.getItem("pa_recent") || "[]");
+    } catch (e) {
+      return [];
+    }
+  });
+  function addRecent(prompt) {
+    setRecentPrompts((prev) => {
+      const filtered = prev.filter((p) => p.id !== prompt.id);
+      const next = [{ id: prompt.id, title: prompt.title, cat: prompt.cat }, ...filtered].slice(0, 5);
+      try {
+        localStorage.setItem("pa_recent", JSON.stringify(next));
+      } catch (e) {
+      }
+      return next;
+    });
+  }
+  function clearRecent() {
+    setRecentPrompts([]);
+    try {
+      localStorage.removeItem("pa_recent");
+    } catch (e) {
+    }
+  }
+  const [showPacks, setShowPacks] = useState(false);
+  const [openPackModal, setOpenPackModal] = useState(null);
+  const [unlockedPacks, setUnlockedPacks] = useState(() => {
+    try {
+      return new Set(JSON.parse(localStorage.getItem("pa_unlocked") || "[]"));
+    } catch (e) {
+      return /* @__PURE__ */ new Set();
+    }
+  });
+  function unlockPack(id) {
+    setUnlockedPacks((prev) => {
+      const next = new Set(prev);
+      next.add(id);
+      try {
+        localStorage.setItem("pa_unlocked", JSON.stringify([...next]));
+      } catch (e) {
+      }
+      return next;
+    });
+  }
+  function activatePack(pack) {
+    setQuery(pack.query.split(" ")[0]);
+    setActiveCat("all");
+    setShowPacks(false);
+    setShowSaved(false);
+    setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 80);
+  }
+  const [showBadge, setShowBadge] = useState(false);
   const [toast, setToast] = useState("");
   const toastTimer = useRef(null);
   function showToast(msg) {
@@ -271,18 +407,16 @@ function App() {
   const resultsRef = useRef(null);
   const searchInputRef = useRef(null);
   function onSearchKey(e) {
-    if (e.key === "Enter") {
-      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    if (e.key === "Enter") resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     if (e.key === "Escape") setQuery("");
   }
   useEffect(() => {
-    function onKey(e) {
+    const onKey = (e) => {
       if (e.key === "/" && document.activeElement.tagName !== "INPUT" && document.activeElement.tagName !== "TEXTAREA") {
         e.preventDefault();
         searchInputRef.current?.focus();
       }
-    }
+    };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, []);
@@ -322,9 +456,9 @@ function App() {
   }
   const totalLabel = fmtBig(VIRTUAL_TOTAL);
   useEffect(() => {
-    const onScroll = () => setScrolled(window.scrollY > 8);
-    window.addEventListener("scroll", onScroll, { passive: true });
-    return () => window.removeEventListener("scroll", onScroll);
+    const fn = () => setScrolled(window.scrollY > 8);
+    window.addEventListener("scroll", fn, { passive: true });
+    return () => window.removeEventListener("scroll", fn);
   }, []);
   useEffect(() => {
     function checkReturn() {
@@ -448,9 +582,7 @@ function App() {
     if (!words.length) {
       effectiveNiches2 = NICHES;
     } else {
-      const hits = NICHES.filter((n) => words.some(
-        (w) => n[1].toLowerCase().includes(w) || n[2].toLowerCase().includes(w)
-      ));
+      const hits = NICHES.filter((n) => words.some((w) => n[1].toLowerCase().includes(w) || n[2].toLowerCase().includes(w)));
       effectiveNiches2 = hits.length > 0 ? hits : NICHES;
     }
     return { authoredFiltered: af, matchedBPs: bps, effectiveNiches: effectiveNiches2 };
@@ -476,14 +608,7 @@ function App() {
           done = true;
           break;
         }
-        result.push({
-          id: "vbp-" + bp.id + "-" + n[0],
-          cat: bp.cat,
-          title: bp.title + " \u2014 " + n[1],
-          desc: bp.desc.replace(/\{NAME\}/g, n[1]).replace(/\{LABEL\}/g, n[2]).replace(/\{AUD\}/g, n[3]),
-          prompt: bp.body.replace(/\{NAME\}/g, n[1]).replace(/\{LABEL\}/g, n[2]).replace(/\{AUD\}/g, n[3]),
-          tags: bp.tags.concat([n[0]])
-        });
+        result.push({ id: "vbp-" + bp.id + "-" + n[0], cat: bp.cat, title: bp.title + " \u2014 " + n[1], desc: bp.desc.replace(/\{NAME\}/g, n[1]).replace(/\{LABEL\}/g, n[2]).replace(/\{AUD\}/g, n[3]), prompt: bp.body.replace(/\{NAME\}/g, n[1]).replace(/\{LABEL\}/g, n[2]).replace(/\{AUD\}/g, n[3]), tags: bp.tags.concat([n[0]]) });
         remaining--;
       }
     }
@@ -493,112 +618,46 @@ function App() {
     if (activeCat !== "all" && p.cat !== activeCat) return false;
     if (!query) return true;
     const q = query.toLowerCase();
-    return p.title.toLowerCase().includes(q) || p.prompt.toLowerCase().includes(q) || (p.tags || []).some((t) => t.toLowerCase().includes(q));
+    return p.title.toLowerCase().includes(q) || p.prompt.toLowerCase().includes(q);
   }) : null;
-  const displayPrompts = savedVisible !== null ? savedVisible : visible;
+  const displayBase = savedVisible !== null ? savedVisible : visible;
+  const displayPrompts = useMemo(() => {
+    if (showSaved || query || activeCat !== "all" || displayBase.length < 6) return displayBase;
+    const r = [...displayBase];
+    r.splice(6, 0, SPONSORED_SLOT);
+    return r;
+  }, [displayBase, showSaved, query, activeCat]);
   const displayTotal = savedVisible !== null ? savedVisible.length : totalFiltered;
+  function handleOpenPrompt(p) {
+    if (!p.isSponsored) addRecent(p);
+    setOpenPrompt(p);
+  }
   function switchCat(id) {
     setActiveCat(id);
     setShowSaved(false);
+    setShowPacks(false);
   }
-  return /* @__PURE__ */ React.createElement("div", { id: "top" }, /* @__PURE__ */ React.createElement("nav", { className: "pa-nav" + (scrolled ? " is-scrolled" : "") }, /* @__PURE__ */ React.createElement("div", { className: "pa-nav-inner" }, /* @__PURE__ */ React.createElement("div", { className: "pa-logo" }, /* @__PURE__ */ React.createElement("span", { className: "pa-logo-mark" }, /* @__PURE__ */ React.createElement(Icon, { name: "spark", size: 16 })), " PromptUndo"), /* @__PURE__ */ React.createElement("div", { className: "pa-nav-links" }, /* @__PURE__ */ React.createElement("a", { href: "#how" }, "How it works"), /* @__PURE__ */ React.createElement("a", { href: "#tools" }, "Tools"), savedPrompts.length > 0 && /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      className: "pa-nav-saved" + (showSaved ? " is-active" : ""),
-      onClick: () => {
-        const next = !showSaved;
-        setShowSaved(next);
-        if (next) setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
-      }
-    },
-    "\u2665 Saved " + savedPrompts.length
-  ), /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      className: "pa-dark-btn",
-      onClick: () => setDark((v) => !v),
-      title: dark ? "Switch to light mode" : "Switch to dark mode",
-      "aria-label": dark ? "Light mode" : "Dark mode"
-    },
-    dark ? "\u2600" : "\u263D"
-  ), /* @__PURE__ */ React.createElement("button", { className: "tip-nav-btn", onClick: () => setTipPhase("open") }, "\u2764\uFE0F Donate"), /* @__PURE__ */ React.createElement("span", { className: "pa-nav-free" }, /* @__PURE__ */ React.createElement(Icon, { name: "infinity", size: 13 }), " Free forever")))), /* @__PURE__ */ React.createElement(
-    Hero,
-    {
-      query,
-      setQuery,
-      totalLabel,
-      categories: CATEGORIES,
-      activeCat,
-      onSetCat: switchCat,
-      searchRef: searchInputRef,
-      onSearchKey
-    }
-  ), /* @__PURE__ */ React.createElement(Stats, null), /* @__PURE__ */ React.createElement(CategoryBar, { categories: CATEGORIES, counts, active: activeCat, onSelect: switchCat }), /* @__PURE__ */ React.createElement("main", { className: "pa-main", ref: resultsRef }, /* @__PURE__ */ React.createElement("div", { className: "pa-results-bar" }, showSaved && /* @__PURE__ */ React.createElement("button", { className: "pa-back-btn", onClick: () => setShowSaved(false) }, "\u2190 All prompts"), /* @__PURE__ */ React.createElement("span", { className: "pa-results-count" }, /* @__PURE__ */ React.createElement("strong", null, displayTotal > 9999 ? fmtBig(displayTotal) + "+" : displayTotal), " ", displayTotal === 1 ? "prompt" : "prompts", showSaved && " saved", !showSaved && activeCat !== "all" && /* @__PURE__ */ React.createElement("span", { className: "pa-results-cat" }, " in ", catMap[activeCat] && catMap[activeCat].name), query && /* @__PURE__ */ React.createElement("span", { className: "pa-results-cat" }, " for \u201C", query, "\u201D"))), displayTotal === 0 ? /* @__PURE__ */ React.createElement("div", { className: "pa-empty" }, /* @__PURE__ */ React.createElement("div", { className: "pa-empty-icon" }, /* @__PURE__ */ React.createElement(Icon, { name: "search", size: 26 })), /* @__PURE__ */ React.createElement("h3", { className: "pa-empty-title" }, showSaved ? "No saved prompts match" : "No prompts match that yet"), /* @__PURE__ */ React.createElement("p", { className: "pa-empty-text" }, showSaved ? "Try a broader search or clear category filter." : "Try a broader keyword \u2014 or browse all 16 categories."), /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-primary", onClick: () => {
+  return /* @__PURE__ */ React.createElement("div", { id: "top" }, /* @__PURE__ */ React.createElement("nav", { className: "pa-nav" + (scrolled ? " is-scrolled" : "") }, /* @__PURE__ */ React.createElement("div", { className: "pa-nav-inner" }, /* @__PURE__ */ React.createElement("div", { className: "pa-logo" }, /* @__PURE__ */ React.createElement("span", { className: "pa-logo-mark" }, /* @__PURE__ */ React.createElement(Icon, { name: "spark", size: 16 })), " PromptUndo"), /* @__PURE__ */ React.createElement("div", { className: "pa-nav-links" }, /* @__PURE__ */ React.createElement("a", { href: "#how" }, "How it works"), /* @__PURE__ */ React.createElement("a", { href: "#tools" }, "Tools"), /* @__PURE__ */ React.createElement("button", { className: "pa-nav-packs" + (showPacks ? " is-active" : ""), onClick: () => {
+    setShowPacks((v) => !v);
+    setShowSaved(false);
+  } }, "\u{1F4E6} Packs"), savedPrompts.length > 0 && /* @__PURE__ */ React.createElement("button", { className: "pa-nav-saved" + (showSaved ? " is-active" : ""), onClick: () => {
+    const n = !showSaved;
+    setShowSaved(n);
+    setShowPacks(false);
+    if (n) setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+  } }, "\u2665 Saved " + savedPrompts.length), /* @__PURE__ */ React.createElement("button", { className: "pa-dark-btn", onClick: () => setDark((v) => !v), title: dark ? "Light mode" : "Dark mode" }, dark ? "\u2600" : "\u263D"), /* @__PURE__ */ React.createElement("button", { className: "tip-nav-btn", onClick: () => setTipPhase("open") }, "\u2764\uFE0F Donate"), /* @__PURE__ */ React.createElement("span", { className: "pa-nav-free" }, /* @__PURE__ */ React.createElement(Icon, { name: "infinity", size: 13 }), " Free forever")))), /* @__PURE__ */ React.createElement(Hero, { query, setQuery, totalLabel, categories: CATEGORIES, activeCat, onSetCat: switchCat, searchRef: searchInputRef, onSearchKey }), !dailyDismissed && !showPacks && /* @__PURE__ */ React.createElement(DailyBanner, { prompt: dailyPrompt, streak, catMap, onOpen: handleOpenPrompt, onDismiss: dismissDaily }), /* @__PURE__ */ React.createElement(Stats, null), /* @__PURE__ */ React.createElement(CategoryBar, { categories: CATEGORIES, counts, active: activeCat, onSelect: switchCat }), showPacks ? /* @__PURE__ */ React.createElement("div", { className: "pa-main" }, /* @__PURE__ */ React.createElement(PacksView, { packs: PACKS, unlocked: unlockedPacks, onUnlockClick: setOpenPackModal, onActivate: activatePack, onBack: () => setShowPacks(false) })) : /* @__PURE__ */ React.createElement("main", { className: "pa-main", ref: resultsRef }, /* @__PURE__ */ React.createElement("div", { className: "pa-results-bar" }, showSaved && /* @__PURE__ */ React.createElement("button", { className: "pa-back-btn", onClick: () => setShowSaved(false) }, "\u2190 All prompts"), /* @__PURE__ */ React.createElement("span", { className: "pa-results-count" }, /* @__PURE__ */ React.createElement("strong", null, displayTotal > 9999 ? fmtBig(displayTotal) + "+" : displayTotal), " ", displayTotal === 1 ? "prompt" : "prompts", showSaved && " saved", !showSaved && activeCat !== "all" && catMap[activeCat] && /* @__PURE__ */ React.createElement("span", { className: "pa-results-cat" }, " in " + catMap[activeCat].name), query && /* @__PURE__ */ React.createElement("span", { className: "pa-results-cat" }, ' for "' + query + '"'))), displayTotal === 0 ? /* @__PURE__ */ React.createElement("div", { className: "pa-empty" }, /* @__PURE__ */ React.createElement("div", { className: "pa-empty-icon" }, /* @__PURE__ */ React.createElement(Icon, { name: "search", size: 26 })), /* @__PURE__ */ React.createElement("h3", { className: "pa-empty-title" }, showSaved ? "No saved prompts match" : "No prompts match that yet"), /* @__PURE__ */ React.createElement("p", { className: "pa-empty-text" }, showSaved ? "Try clearing filters." : "Try a broader keyword \u2014 or browse all 16 categories."), /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-primary", onClick: () => {
     setQuery("");
     setActiveCat("all");
     setShowSaved(false);
-  } }, /* @__PURE__ */ React.createElement(Icon, { name: "all", size: 15 }), " ", showSaved ? "Show all saved" : "Show all prompts")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "pa-grid", style: { opacity: stale ? 0.55 : 1, transition: "opacity .15s ease" } }, displayPrompts.map((p, i) => /* @__PURE__ */ React.createElement(
-    PromptCard,
-    {
-      key: p.id,
-      prompt: p,
-      category: catMap[p.cat] || CATEGORIES[0],
-      index: i,
-      onOpen: setOpenPrompt,
-      isSaved: savedIds.has(p.id),
-      onSave: toggleSave,
-      onCopy: showToast
-    }
-  ))), !showSaved && displayTotal > limit && /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", marginTop: 28 } }, /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      className: "pa-btn pa-btn-ghost",
-      style: { display: "inline-flex", flex: "none", padding: "0 22px" },
-      onClick: () => setLimit((l) => l + PAGE)
-    },
-    /* @__PURE__ */ React.createElement(Icon, { name: "layers", size: 15 }),
-    " Show more"
-  )))), /* @__PURE__ */ React.createElement(HowItWorks, { steps: STEPS }), /* @__PURE__ */ React.createElement(Tools, { tools: TOOLS }), /* @__PURE__ */ React.createElement(Footer, null), openPrompt && /* @__PURE__ */ React.createElement(CustomizeModal, { prompt: openPrompt, category: catMap[openPrompt.cat], onClose: () => setOpenPrompt(null) }), tipPhase === "open" && /* @__PURE__ */ React.createElement("div", { className: "tip-backdrop", onClick: () => setTipPhase("idle") }, /* @__PURE__ */ React.createElement("div", { className: "tip-card", onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("button", { className: "tip-close", onClick: () => setTipPhase("idle") }, "\u2715"), /* @__PURE__ */ React.createElement("div", { className: "tip-header" }, /* @__PURE__ */ React.createElement("span", { className: "tip-emoji" }, "\u2615"), /* @__PURE__ */ React.createElement("h2", null, "Buy me a chai"), /* @__PURE__ */ React.createElement("p", null, "PromptUndo is free forever. If it saved you time, a small tip keeps it alive!")), /* @__PURE__ */ React.createElement("p", { className: "tip-pick-label" }, "Pick an amount"), /* @__PURE__ */ React.createElement("div", { className: "tip-amounts" }, TIP_PRESETS.map((p) => /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      key: p,
-      className: "tip-amount-btn" + (tipSel === p && !tipCustom ? " is-active" : ""),
-      onClick: () => {
-        setTipSel(p);
-        setTipCustom("");
-      }
-    },
-    "\u20B9",
-    p
-  ))), /* @__PURE__ */ React.createElement("div", { className: "tip-custom" }, /* @__PURE__ */ React.createElement("span", { className: "tip-rupee" }, "\u20B9"), /* @__PURE__ */ React.createElement(
-    "input",
-    {
-      className: "tip-custom-input",
-      type: "number",
-      min: "1",
-      step: "1",
-      placeholder: "Custom amount",
-      value: tipCustom,
-      onChange: (e) => setTipCustom(e.target.value.replace(/\D/g, ""))
-    }
-  )), /* @__PURE__ */ React.createElement("button", { className: "tip-pay-btn", onClick: tipPay, disabled: tipAmount < 1 }, "\u{1F389} Buy Happiness \u2014 \u20B9", tipAmount || "\u2014"), /* @__PURE__ */ React.createElement("div", { className: "tip-upi-row" }, /* @__PURE__ */ React.createElement("div", { className: "tip-upi-box" }, /* @__PURE__ */ React.createElement("span", { className: "tip-upi-label" }, "UPI ID"), /* @__PURE__ */ React.createElement("span", { className: "tip-upi-value" }, TIP_UPI), /* @__PURE__ */ React.createElement("button", { className: "tip-copy-btn", onClick: () => tipCopyText(TIP_UPI, "upi") }, tipCopied === "upi" ? "\u2713 Copied" : "Copy")), /* @__PURE__ */ React.createElement("div", { className: "tip-upi-box" }, /* @__PURE__ */ React.createElement("span", { className: "tip-upi-label" }, "GPay / PhonePe"), /* @__PURE__ */ React.createElement("span", { className: "tip-upi-value" }, TIP_PHONE), /* @__PURE__ */ React.createElement("button", { className: "tip-copy-btn", onClick: () => tipCopyText(TIP_PHONE, "phone") }, tipCopied === "phone" ? "\u2713 Copied" : "Copy"))), /* @__PURE__ */ React.createElement("p", { className: "tip-fine" }, "Tap the button \u2192 UPI opens \u2192 pay \u2192 come back here for a surprise \u{1F38A}"))), tipPhase === "celebrate" && /* @__PURE__ */ React.createElement("div", { className: "tip-celebration", onClick: () => setTipPhase("idle") }, tipCoins.map((c) => /* @__PURE__ */ React.createElement(
-    "span",
-    {
-      key: c.id,
-      className: "tip-particle" + (c.type === "star" ? " is-star" : ""),
-      style: {
-        left: c.x + "%",
-        "--size": c.size + "px",
-        "--dur": c.dur + "s",
-        "--delay": c.delay + "s",
-        "--r": c.r + "deg",
-        "--drift": c.drift + "px"
-      }
-    },
-    c.type === "star" ? "\u2726" : "\u20B9"
-  )), /* @__PURE__ */ React.createElement("div", { className: "tip-thankyou" }, /* @__PURE__ */ React.createElement("span", { className: "tip-big-heart" }, "\u2764\uFE0F"), /* @__PURE__ */ React.createElement("h2", null, "You're incredible!"), /* @__PURE__ */ React.createElement("p", { className: "tip-sent" }, "\u20B9", tipAmount, " received \xB7 Thank you \u{1F64F}"), /* @__PURE__ */ React.createElement("p", { className: "tip-sub-msg" }, "This keeps PromptUndo free for everyone in India"), /* @__PURE__ */ React.createElement("button", { className: "tip-dismiss", onClick: (e) => {
+  } }, /* @__PURE__ */ React.createElement(Icon, { name: "all", size: 15 }), " Show all prompts")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "pa-grid", style: { opacity: stale ? 0.55 : 1, transition: "opacity .15s ease" } }, displayPrompts.map((p, i) => /* @__PURE__ */ React.createElement(PromptCard, { key: p.id, prompt: p, category: catMap[p.cat] || CATEGORIES[0], index: i, onOpen: handleOpenPrompt, isSaved: savedIds.has(p.id), onSave: toggleSave, onCopy: showToast }))), !showSaved && displayTotal > limit && /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", marginTop: 28 } }, /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-ghost", style: { display: "inline-flex", flex: "none", padding: "0 22px" }, onClick: () => setLimit((l) => l + PAGE) }, /* @__PURE__ */ React.createElement(Icon, { name: "layers", size: 15 }), " Show more")))), /* @__PURE__ */ React.createElement(HowItWorks, { steps: STEPS }), /* @__PURE__ */ React.createElement(Tools, { tools: TOOLS }), /* @__PURE__ */ React.createElement(Footer, { onBadge: () => setShowBadge(true) }), /* @__PURE__ */ React.createElement(RecentTray, { recent: recentPrompts, catMap, onOpen: handleOpenPrompt, onClear: clearRecent }), openPrompt && !openPrompt.isSponsored && /* @__PURE__ */ React.createElement(CustomizeModal, { prompt: openPrompt, category: catMap[openPrompt.cat] || CATEGORIES[0], onClose: () => setOpenPrompt(null) }), openPackModal && /* @__PURE__ */ React.createElement(PackUnlockModal, { pack: openPackModal, onClose: () => setOpenPackModal(null), onUnlocked: (id) => {
+    unlockPack(id);
+    setOpenPackModal(null);
+  } }), showBadge && /* @__PURE__ */ React.createElement(BadgeModal, { onClose: () => setShowBadge(false) }), tipPhase === "open" && /* @__PURE__ */ React.createElement("div", { className: "tip-backdrop", onClick: () => setTipPhase("idle") }, /* @__PURE__ */ React.createElement("div", { className: "tip-card", onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("button", { className: "tip-close", onClick: () => setTipPhase("idle") }, "\u2715"), /* @__PURE__ */ React.createElement("div", { className: "tip-header" }, /* @__PURE__ */ React.createElement("span", { className: "tip-emoji" }, "\u2615"), /* @__PURE__ */ React.createElement("h2", null, "Buy me a chai"), /* @__PURE__ */ React.createElement("p", null, "PromptUndo is free forever. If it saved you time, a small tip keeps it alive!")), /* @__PURE__ */ React.createElement("p", { className: "tip-pick-label" }, "Pick an amount"), /* @__PURE__ */ React.createElement("div", { className: "tip-amounts" }, TIP_PRESETS.map((p) => /* @__PURE__ */ React.createElement("button", { key: p, className: "tip-amount-btn" + (tipSel === p && !tipCustom ? " is-active" : ""), onClick: () => {
+    setTipSel(p);
+    setTipCustom("");
+  } }, "\u20B9", p))), /* @__PURE__ */ React.createElement("div", { className: "tip-custom" }, /* @__PURE__ */ React.createElement("span", { className: "tip-rupee" }, "\u20B9"), /* @__PURE__ */ React.createElement("input", { className: "tip-custom-input", type: "number", min: "1", step: "1", placeholder: "Custom amount", value: tipCustom, onChange: (e) => setTipCustom(e.target.value.replace(/\D/g, "")) })), /* @__PURE__ */ React.createElement("button", { className: "tip-pay-btn", onClick: tipPay, disabled: tipAmount < 1 }, "\u{1F389} Buy Happiness \u2014 \u20B9", tipAmount || "\u2014"), /* @__PURE__ */ React.createElement("div", { className: "tip-upi-row" }, /* @__PURE__ */ React.createElement("div", { className: "tip-upi-box" }, /* @__PURE__ */ React.createElement("span", { className: "tip-upi-label" }, "UPI ID"), /* @__PURE__ */ React.createElement("span", { className: "tip-upi-value" }, TIP_UPI), /* @__PURE__ */ React.createElement("button", { className: "tip-copy-btn", onClick: () => tipCopyText(TIP_UPI, "upi") }, tipCopied === "upi" ? "\u2713 Copied" : "Copy")), /* @__PURE__ */ React.createElement("div", { className: "tip-upi-box" }, /* @__PURE__ */ React.createElement("span", { className: "tip-upi-label" }, "GPay / PhonePe"), /* @__PURE__ */ React.createElement("span", { className: "tip-upi-value" }, TIP_PHONE), /* @__PURE__ */ React.createElement("button", { className: "tip-copy-btn", onClick: () => tipCopyText(TIP_PHONE, "phone") }, tipCopied === "phone" ? "\u2713 Copied" : "Copy"))), /* @__PURE__ */ React.createElement("p", { className: "tip-fine" }, "Tap \u2192 UPI opens \u2192 pay \u2192 come back for a surprise \u{1F38A}"))), tipPhase === "celebrate" && /* @__PURE__ */ React.createElement("div", { className: "tip-celebration", onClick: () => setTipPhase("idle") }, tipCoins.map((c) => /* @__PURE__ */ React.createElement("span", { key: c.id, className: "tip-particle" + (c.type === "star" ? " is-star" : ""), style: { left: c.x + "%", "--size": c.size + "px", "--dur": c.dur + "s", "--delay": c.delay + "s", "--r": c.r + "deg", "--drift": c.drift + "px" } }, c.type === "star" ? "\u2726" : "\u20B9")), /* @__PURE__ */ React.createElement("div", { className: "tip-thankyou" }, /* @__PURE__ */ React.createElement("span", { className: "tip-big-heart" }, "\u2764\uFE0F"), /* @__PURE__ */ React.createElement("h2", null, "You're incredible!"), /* @__PURE__ */ React.createElement("p", { className: "tip-sent" }, "\u20B9", tipAmount, " received \xB7 Thank you \u{1F64F}"), /* @__PURE__ */ React.createElement("p", { className: "tip-sub-msg" }, "This keeps PromptUndo free for everyone in India"), /* @__PURE__ */ React.createElement("button", { className: "tip-dismiss", onClick: (e) => {
     e.stopPropagation();
     setTipPhase("idle");
-  } }, "Keep exploring prompts \u2192"))), toast && /* @__PURE__ */ React.createElement("div", { className: "pa-toast", role: "status", "aria-live": "polite" }, toast));
+  } }, "Keep exploring prompts \u2192"))), toast && /* @__PURE__ */ React.createElement("div", { className: "pa-toast", role: "status" }, toast));
 }
 ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));

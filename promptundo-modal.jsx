@@ -1,4 +1,4 @@
-/* PromptUndo — Customize modal (the hero feature) */
+/* PromptUndo — Customize modal */
 const { useState: useStateM, useEffect: useEffectM, useMemo: useMemoM, useRef: useRefM } = React;
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -27,10 +27,26 @@ function paPrettify(token) {
 function paHintFor(token) {
   const h = (window.PA.HINTS || {})[token];
   if (h) return h;
-  // heuristics for unknown long tokens
   const long = /PASTE|TRANSCRIPT|DETAILS|NOTES|SCRIPT|PARAGRAPH/.test(token);
-  return { hint: 'Type your ' + token.toLowerCase() + '…', long };
+  return { hint: 'Type your ' + token.toLowerCase() + '...', long };
 }
+
+// ── Tone suffix map ────────────────────────────────────────────────────────
+const TONES = [
+  { id: 'original', label: 'Original',  suffix: '' },
+  { id: 'formal',   label: 'Formal',    suffix: '\n\nTone instruction: Write in a professional, formal tone with structured language and clear headings where applicable.' },
+  { id: 'casual',   label: 'Casual',    suffix: '\n\nTone instruction: Write in a warm, casual, conversational tone — friendly and approachable, like talking to a colleague.' },
+  { id: 'hinglish', label: 'Hinglish',  suffix: '\n\nTone instruction: Write in Hinglish — a natural mix of Hindi and English the way young urban Indians text. E.g. "Yaar, yeh product bahut solid hai!" Keep it fun and relatable.' },
+];
+
+const MODAL_AI = [
+  { name: 'ChatGPT',    urlQ: 'https://chatgpt.com/?q=',              color: '#10A37F', sym: 'G' },
+  { name: 'Claude',     urlQ: 'https://claude.ai/new?q=',             color: '#D97706', sym: 'C' },
+  { name: 'Gemini',     urlQ: 'https://gemini.google.com/app?q=',     color: '#4285F4', sym: '✦' },
+  { name: 'Grok',       urlQ: 'https://x.com/i/grok?text=',           color: '#9333EA', sym: 'X' },
+  { name: 'Perplexity', urlQ: 'https://www.perplexity.ai/?q=',        color: '#20B2AA', sym: 'P' },
+  { name: 'Copilot',    urlQ: 'https://copilot.microsoft.com/?q=',    color: '#0078D4', sym: 'M' },
+];
 
 // ── Live preview renderer ──────────────────────────────────────────────────
 function PreviewText({ prompt, values }) {
@@ -57,7 +73,10 @@ function CustomizeModal({ prompt, category, onClose }) {
   const tokens = useMemoM(() => paParseTokens(prompt.prompt), [prompt]);
   const [values, setValues] = useStateM({});
   const [copied, setCopied] = useStateM(false);
+  const [toneId, setToneId] = useStateM('original');
+  const [showAI, setShowAI] = useStateM(false);
   const firstRef = useRefM(null);
+  const aiRef = useRefM(null);
 
   useEffectM(() => {
     const onKey = (e) => { if (e.key === 'Escape') onClose(); };
@@ -71,14 +90,24 @@ function CustomizeModal({ prompt, category, onClose }) {
     };
   }, []);
 
+  useEffectM(() => {
+    if (!showAI) return;
+    const onOut = (e) => { if (aiRef.current && !aiRef.current.contains(e.target)) setShowAI(false); };
+    document.addEventListener('mousedown', onOut);
+    return () => document.removeEventListener('mousedown', onOut);
+  }, [showAI]);
+
   const filledCount = tokens.filter(t => (values[t] || '').trim()).length;
 
-  const finalText = useMemoM(() => {
+  const filledText = useMemoM(() => {
     return prompt.prompt.replace(PA_TOKEN_RE, (full, g) => {
       const v = (values[g.trim()] || '').trim();
       return v || full;
     });
   }, [prompt, values]);
+
+  const activeTone = TONES.find(t => t.id === toneId) || TONES[0];
+  const finalText = filledText + activeTone.suffix;
 
   const setField = (tok, v) => setValues(prev => ({ ...prev, [tok]: v }));
 
@@ -88,7 +117,12 @@ function CustomizeModal({ prompt, category, onClose }) {
     setTimeout(() => setCopied(false), 1600);
   };
 
-  const chatGPTHref = 'https://chat.openai.com/?q=' + encodeURIComponent(finalText);
+  function openInAI(tool) {
+    const encoded = encodeURIComponent(finalText);
+    window.open(tool.urlQ + encoded, '_blank', 'noopener,noreferrer');
+    setShowAI(false);
+  }
+
   const pct = tokens.length ? Math.round((filledCount / tokens.length) * 100) : 100;
 
   return (
@@ -143,6 +177,29 @@ function CustomizeModal({ prompt, category, onClose }) {
                 );
               })}
             </div>
+
+            {/* Tone / Remix selector */}
+            <div className="pa-tone-section">
+              <span className="pa-tone-label">Tone remix</span>
+              <div className="pa-tone-tabs" role="group" aria-label="Tone">
+                {TONES.map(t => (
+                  <button
+                    key={t.id}
+                    className={'pa-tone-tab' + (toneId === t.id ? ' is-active' : '')}
+                    onClick={() => setToneId(t.id)}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              {toneId !== 'original' && (
+                <p className="pa-tone-hint">
+                  {toneId === 'formal' && 'Adds a formal-tone instruction at the end of your prompt.'}
+                  {toneId === 'casual' && 'Adds a casual, friendly-tone instruction to the prompt.'}
+                  {toneId === 'hinglish' && 'Tells the AI to respond in Hinglish — perfect for Indian social media.'}
+                </p>
+              )}
+            </div>
           </div>
 
           {/* Right — live preview */}
@@ -153,10 +210,13 @@ function CustomizeModal({ prompt, category, onClose }) {
             </div>
             <div className="pa-preview-card">
               <PreviewText prompt={prompt.prompt} values={values} />
+              {toneId !== 'original' && (
+                <p className="pa-tone-suffix-preview">{activeTone.suffix.trim()}</p>
+              )}
             </div>
             <p className="pa-preview-hint">
               {filledCount === tokens.length
-                ? <><Icon name="check" size={13} /> All set — copy it and paste into your AI tool.</>
+                ? <><Icon name="check" size={13} /> All set — copy and paste into your AI tool.</>
                 : 'Fill the highlighted blanks to complete your prompt.'}
             </p>
           </div>
@@ -168,10 +228,21 @@ function CustomizeModal({ prompt, category, onClose }) {
             <Icon name={copied ? 'check' : 'copy'} size={16} />
             {copied ? 'Copied to clipboard' : 'Copy filled prompt'}
           </button>
-          <a className="pa-btn pa-btn-ghost pa-btn-lg" href={chatGPTHref} target="_blank" rel="noopener noreferrer">
-            <Icon name="robot" size={16} /> Open in ChatGPT
-            <Icon name="arrowUpRight" size={13} />
-          </a>
+          <div className="pa-ai-wrap" ref={aiRef} style={{ position: 'relative' }}>
+            <button className={'pa-btn pa-btn-ghost pa-btn-lg pa-ai-btn' + (showAI ? ' is-open' : '')} onClick={() => setShowAI(v => !v)}>
+              <Icon name="robot" size={16} /> Open in AI <span className="pa-ai-chevron">▾</span>
+            </button>
+            {showAI && (
+              <div className="pa-ai-dropdown pa-ai-dropdown-up">
+                {MODAL_AI.map(t => (
+                  <button key={t.name} className="pa-ai-option" onClick={() => openInAI(t)}>
+                    <span className="pa-ai-dot" style={{ background: t.color + '22', color: t.color }}>{t.sym}</span>
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
