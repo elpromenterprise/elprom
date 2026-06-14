@@ -1,4 +1,25 @@
 const { useState, useEffect, useMemo, useRef, useDeferredValue } = React;
+const XP_CONFIG = {
+  copy: 10,
+  save: 5,
+  customize: 15,
+  donate: 50,
+  levelUp: 100
+};
+const LEVEL_THRESHOLDS = [0, 100, 250, 450, 700, 1e3, 1350, 1750, 2200, 2700];
+const LEVEL_EMOJIS = ["\u{1F331}", "\u{1F33F}", "\u{1F340}", "\u{1F33E}", "\u{1F333}", "\u{1F332}", "\u{1F3C6}", "\u2B50", "\u2728", "\u{1F680}"];
+function getLevelFromXP(xp) {
+  for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (xp >= LEVEL_THRESHOLDS[i]) return i;
+  }
+  return 0;
+}
+function getXPForLevel(level) {
+  return LEVEL_THRESHOLDS[Math.min(level, LEVEL_THRESHOLDS.length - 1)] || 0;
+}
+function getNextLevelXP(level) {
+  return LEVEL_THRESHOLDS[Math.min(level + 1, LEVEL_THRESHOLDS.length - 1)] || LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
+}
 function fmtBig(n) {
   if (n >= 1e5) return (n / 1e5).toFixed(1).replace(/\.0$/, "") + "L";
   if (n >= 1e3) return Math.round(n / 1e3) + "K";
@@ -54,6 +75,26 @@ const SPONSORED_SLOT = {
   sponsorUrl: "https://canva.com",
   sponsorCta: "Try Canva Free \u2192"
 };
+function XPBar({ xp, level }) {
+  const nextLevelXP = getNextLevelXP(level);
+  const currentLevelXP = getXPForLevel(level);
+  const progress = (xp - currentLevelXP) / (nextLevelXP - currentLevelXP) * 100;
+  return /* @__PURE__ */ React.createElement("div", { className: "pa-xp-bar" }, /* @__PURE__ */ React.createElement("div", { className: "pa-xp-fill", style: { width: progress + "%" } }));
+}
+function XPPop({ x, y, amount, onDone }) {
+  useEffect(() => {
+    const timer = setTimeout(onDone, 800);
+    return () => clearTimeout(timer);
+  }, [onDone]);
+  return /* @__PURE__ */ React.createElement("div", { className: "pa-xp-pop", style: { left: x + "px", top: y + "px" } }, "+" + amount + " XP");
+}
+function LevelUpCelebration({ level, onDismiss }) {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 2800);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+  return /* @__PURE__ */ React.createElement("div", { className: "pa-level-up" }, /* @__PURE__ */ React.createElement("div", { className: "pa-level-up-emoji" }, LEVEL_EMOJIS[level] || "\u2B50"), /* @__PURE__ */ React.createElement("div", { className: "pa-level-up-text" }, "Level " + level + " Unlocked!"), /* @__PURE__ */ React.createElement("div", { className: "pa-level-up-sub" }, "Keep exploring to reach the next level"));
+}
 function Reveal({ children, delay = 0, className = "", tag = "div" }) {
   const ref = useRef(null);
   const [seen, setSeen] = useState(false);
@@ -131,9 +172,10 @@ function CountUp({ end, suffix = "", dur = 1200 }) {
   }, [end]);
   return /* @__PURE__ */ React.createElement("span", { ref }, val, suffix);
 }
-function CopyButton({ text, onCopy, label }) {
+function CopyButton({ text, onCopy, label, onXP, ref: btnRef }) {
   const [copied, setCopied] = useState(false);
   const [ripple, setRipple] = useState(false);
+  const localRef = useRef(null);
   const onClick = (e) => {
     e.stopPropagation();
     navigator.clipboard && navigator.clipboard.writeText(text);
@@ -142,8 +184,9 @@ function CopyButton({ text, onCopy, label }) {
     setTimeout(() => setRipple(false), 520);
     setTimeout(() => setCopied(false), 1400);
     onCopy && onCopy();
+    if (onXP) onXP(10, localRef.current);
   };
-  return /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-ghost pa-copy-btn" + (copied ? " is-copied" : "") + (ripple ? " is-rippling" : ""), onClick }, /* @__PURE__ */ React.createElement(Icon, { name: copied ? "check" : "copy", size: 15 }), copied ? "Copied" : label || "Copy");
+  return /* @__PURE__ */ React.createElement("button", { ref: localRef, className: "pa-btn pa-btn-ghost pa-copy-btn" + (copied ? " is-copied" : "") + (ripple ? " is-rippling" : ""), onClick }, /* @__PURE__ */ React.createElement(Icon, { name: copied ? "check" : "copy", size: 15 }), copied ? "Copied" : label || "Copy");
 }
 function DailyBanner({ prompt, streak, catMap, onOpen, onDismiss }) {
   if (!prompt) return null;
@@ -204,7 +247,7 @@ function BadgeModal({ onClose }) {
     copied ? "Copied!" : "Copy embed code"
   ), /* @__PURE__ */ React.createElement("p", { className: "tip-fine" }, "This badge links back to PromptUndo \u2014 helps us grow and stay free \u{1F64F}")));
 }
-function PromptCard({ prompt, category, index, onOpen, isSaved, onSave, onCopy }) {
+function PromptCard({ prompt, category, index, onOpen, isSaved, onSave, onCopy, onXP }) {
   const blanks = prompt.prompt.match(/\[([A-Z0-9_ ]+)\]/g) || [];
   const count = new Set(blanks.map((b) => b.replace(/[\[\]]/g, "").trim())).size;
   const wordCount = prompt.prompt.trim().split(/\s+/).length;
@@ -243,10 +286,12 @@ function PromptCard({ prompt, category, index, onOpen, isSaved, onSave, onCopy }
   return /* @__PURE__ */ React.createElement(Reveal, { delay: index % 9 * 55 }, /* @__PURE__ */ React.createElement("article", { className: "pa-card", onClick: () => onOpen(prompt) }, /* @__PURE__ */ React.createElement("div", { className: "pa-card-top" }, /* @__PURE__ */ React.createElement("span", { className: "pa-cat-chip" }, /* @__PURE__ */ React.createElement("span", { className: "pa-cat-chip-icon" }, /* @__PURE__ */ React.createElement(Icon, { name: category.id, size: 15 })), category.name), /* @__PURE__ */ React.createElement("div", { className: "pa-card-top-right" }, popBadge && /* @__PURE__ */ React.createElement("span", { className: "pa-pop-badge is-" + popBadge }, popBadge === "trending" ? "\u{1F525} Trending" : "\u26A1 Popular"), /* @__PURE__ */ React.createElement("span", { className: "pa-blanks-tag" }, /* @__PURE__ */ React.createElement(Icon, { name: "brackets", size: 12 }), " ", count), /* @__PURE__ */ React.createElement("button", { className: "pa-save-btn" + (isSaved ? " is-saved" : ""), onClick: (e) => {
     e.stopPropagation();
     onSave(prompt);
+    if (onXP && !isSaved) onXP(5, e.target);
   }, title: isSaved ? "Unsave" : "Save" }, isSaved ? "\u2665" : "\u2661"), /* @__PURE__ */ React.createElement("button", { className: "pa-share-btn", onClick: sharePrompt, title: "Share prompt" }, "\u2197"))), /* @__PURE__ */ React.createElement("h3", { className: "pa-card-title" }, prompt.title), /* @__PURE__ */ React.createElement("p", { className: "pa-card-desc" }, prompt.desc), /* @__PURE__ */ React.createElement("div", { className: "pa-card-preview" }, /* @__PURE__ */ React.createElement("span", { className: "pa-card-preview-label" }, "PROMPT"), prompt.prompt), /* @__PURE__ */ React.createElement("div", { className: "pa-card-footer" }, /* @__PURE__ */ React.createElement("div", { className: "pa-card-tags" }, prompt.tags.slice(0, 3).map((t) => /* @__PURE__ */ React.createElement("span", { key: t, className: "pa-tag" }, "#" + t))), /* @__PURE__ */ React.createElement("span", { className: "pa-word-count" }, wordCount, "w")), /* @__PURE__ */ React.createElement("div", { className: "pa-card-actions" }, /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-primary", onClick: (e) => {
     e.stopPropagation();
     onOpen(prompt);
-  } }, /* @__PURE__ */ React.createElement(Icon, { name: "wand", size: 15 }), " ", "Customize"), /* @__PURE__ */ React.createElement(CopyButton, { text: prompt.prompt, onCopy: () => onCopy && onCopy("Prompt copied \u2713") }), /* @__PURE__ */ React.createElement("div", { className: "pa-ai-wrap", ref: aiRef, onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-ai-btn" + (showAI ? " is-open" : ""), onClick: () => setShowAI((v) => !v) }, "\u2726 Try AI", " ", /* @__PURE__ */ React.createElement("span", { className: "pa-ai-chevron" }, "\u25BE")), showAI && /* @__PURE__ */ React.createElement("div", { className: "pa-ai-dropdown" }, AI_TOOLS.map((t) => /* @__PURE__ */ React.createElement("button", { key: t.name, className: "pa-ai-option", onClick: () => launchAI(t) }, /* @__PURE__ */ React.createElement("span", { className: "pa-ai-dot", style: { background: t.color + "22", color: t.color } }, t.sym), t.name)))))));
+    if (onXP) onXP(15, e.target);
+  } }, /* @__PURE__ */ React.createElement(Icon, { name: "wand", size: 15 }), " ", "Customize"), /* @__PURE__ */ React.createElement(CopyButton, { text: prompt.prompt, onCopy: () => onCopy && onCopy("Prompt copied \u2713"), onXP }), /* @__PURE__ */ React.createElement("div", { className: "pa-ai-wrap", ref: aiRef, onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-ai-btn" + (showAI ? " is-open" : ""), onClick: () => setShowAI((v) => !v) }, "\u2726 Try AI", " ", /* @__PURE__ */ React.createElement("span", { className: "pa-ai-chevron" }, "\u25BE")), showAI && /* @__PURE__ */ React.createElement("div", { className: "pa-ai-dropdown" }, AI_TOOLS.map((t) => /* @__PURE__ */ React.createElement("button", { key: t.name, className: "pa-ai-option", onClick: () => launchAI(t) }, /* @__PURE__ */ React.createElement("span", { className: "pa-ai-dot", style: { background: t.color + "22", color: t.color } }, t.sym), t.name)))))));
 }
 function CategoryBar({ categories, counts, active, onSelect }) {
   return /* @__PURE__ */ React.createElement("div", { className: "pa-catbar" }, /* @__PURE__ */ React.createElement("div", { className: "pa-catbar-inner" }, categories.map((c) => /* @__PURE__ */ React.createElement("button", { key: c.id, className: "pa-pill" + (active === c.id ? " is-active" : ""), onClick: () => onSelect(c.id) }, /* @__PURE__ */ React.createElement(Icon, { name: c.id, size: 15, className: "pa-pill-icon" }), /* @__PURE__ */ React.createElement("span", null, c.name), /* @__PURE__ */ React.createElement("span", { className: "pa-pill-count" }, fmtBig(counts[c.id] || 0))))));
@@ -289,6 +334,39 @@ function App() {
   const [scrolled, setScrolled] = useState(false);
   const PAGE = 60;
   const [limit, setLimit] = useState(PAGE);
+  const [xp, setXP] = useState(() => {
+    try {
+      return parseInt(localStorage.getItem("pa_xp") || "0", 10);
+    } catch (e) {
+      return 0;
+    }
+  });
+  const currLevel = getLevelFromXP(xp);
+  const [xpPopups, setXpPopups] = useState([]);
+  const [levelUpShow, setLevelUpShow] = useState(false);
+  const [levelUpLevel, setLevelUpLevel] = useState(0);
+  function addXP(amount, fromElement) {
+    const oldLevel = getLevelFromXP(xp);
+    const newXP = xp + amount;
+    const newLevel = getLevelFromXP(newXP);
+    setXP(newXP);
+    try {
+      localStorage.setItem("pa_xp", String(newXP));
+    } catch (e) {
+    }
+    if (fromElement) {
+      const rect = fromElement.getBoundingClientRect();
+      const popId = Math.random();
+      setXpPopups((prev) => [...prev, { id: popId, x: rect.left + rect.width / 2, y: rect.top, amount }]);
+      setTimeout(() => {
+        setXpPopups((prev) => prev.filter((p) => p.id !== popId));
+      }, 800);
+    }
+    if (newLevel > oldLevel) {
+      setLevelUpLevel(newLevel);
+      setLevelUpShow(true);
+    }
+  }
   const [dark, setDark] = useState(() => {
     try {
       const s = localStorage.getItem("pa_theme");
@@ -477,6 +555,7 @@ function App() {
           setTipSel(amt);
           setTipCoins(makeTipCoins());
           setTipPhase("celebrate");
+          addXP(50);
         }
       } catch (e) {
         try {
@@ -637,7 +716,8 @@ function App() {
     setShowSaved(false);
     setShowPacks(false);
   }
-  return /* @__PURE__ */ React.createElement("div", { id: "top" }, /* @__PURE__ */ React.createElement("nav", { className: "pa-nav" + (scrolled ? " is-scrolled" : "") }, /* @__PURE__ */ React.createElement("div", { className: "pa-nav-inner" }, /* @__PURE__ */ React.createElement("div", { className: "pa-logo" }, /* @__PURE__ */ React.createElement("span", { className: "pa-logo-mark" }, /* @__PURE__ */ React.createElement(Icon, { name: "spark", size: 16 })), " PromptUndo"), /* @__PURE__ */ React.createElement("div", { className: "pa-nav-links" }, /* @__PURE__ */ React.createElement("a", { href: "#how" }, "How it works"), /* @__PURE__ */ React.createElement("a", { href: "#tools" }, "Tools"), /* @__PURE__ */ React.createElement("button", { className: "pa-nav-packs" + (showPacks ? " is-active" : ""), onClick: () => {
+  return /* @__PURE__ */ React.createElement("div", { id: "top" }, /* @__PURE__ */ React.createElement(XPBar, { xp, level: currLevel }), xpPopups.map((pop) => /* @__PURE__ */ React.createElement(XPPop, { key: pop.id, x: pop.x, y: pop.y, amount: pop.amount, onDone: () => {
+  } })), levelUpShow && /* @__PURE__ */ React.createElement(LevelUpCelebration, { level: levelUpLevel, onDismiss: () => setLevelUpShow(false) }), /* @__PURE__ */ React.createElement("nav", { className: "pa-nav" + (scrolled ? " is-scrolled" : "") }, /* @__PURE__ */ React.createElement("div", { className: "pa-nav-inner" }, /* @__PURE__ */ React.createElement("div", { className: "pa-logo" }, /* @__PURE__ */ React.createElement("span", { className: "pa-logo-mark" }, /* @__PURE__ */ React.createElement(Icon, { name: "spark", size: 16 })), " PromptUndo"), /* @__PURE__ */ React.createElement("div", { className: "pa-nav-links" }, /* @__PURE__ */ React.createElement("a", { href: "#how" }, "How it works"), /* @__PURE__ */ React.createElement("a", { href: "#tools" }, "Tools"), /* @__PURE__ */ React.createElement("button", { className: "pa-nav-packs" + (showPacks ? " is-active" : ""), onClick: () => {
     setShowPacks((v) => !v);
     setShowSaved(false);
   } }, "\u{1F4E6} Packs"), savedPrompts.length > 0 && /* @__PURE__ */ React.createElement("button", { className: "pa-nav-saved" + (showSaved ? " is-active" : ""), onClick: () => {
@@ -649,7 +729,7 @@ function App() {
     setQuery("");
     setActiveCat("all");
     setShowSaved(false);
-  } }, /* @__PURE__ */ React.createElement(Icon, { name: "all", size: 15 }), " Show all prompts")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "pa-grid", style: { opacity: stale ? 0.55 : 1, transition: "opacity .15s ease" } }, displayPrompts.map((p, i) => /* @__PURE__ */ React.createElement(PromptCard, { key: p.id, prompt: p, category: catMap[p.cat] || CATEGORIES[0], index: i, onOpen: handleOpenPrompt, isSaved: savedIds.has(p.id), onSave: toggleSave, onCopy: showToast }))), !showSaved && displayTotal > limit && /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", marginTop: 28 } }, /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-ghost", style: { display: "inline-flex", flex: "none", padding: "0 22px" }, onClick: () => setLimit((l) => l + PAGE) }, /* @__PURE__ */ React.createElement(Icon, { name: "layers", size: 15 }), " Show more")))), /* @__PURE__ */ React.createElement(HowItWorks, { steps: STEPS }), /* @__PURE__ */ React.createElement(Tools, { tools: TOOLS }), /* @__PURE__ */ React.createElement(Footer, { onBadge: () => setShowBadge(true) }), /* @__PURE__ */ React.createElement(RecentTray, { recent: recentPrompts, catMap, onOpen: handleOpenPrompt, onClear: clearRecent }), openPrompt && !openPrompt.isSponsored && /* @__PURE__ */ React.createElement(CustomizeModal, { prompt: openPrompt, category: catMap[openPrompt.cat] || CATEGORIES[0], onClose: () => setOpenPrompt(null) }), openPackModal && /* @__PURE__ */ React.createElement(PackUnlockModal, { pack: openPackModal, onClose: () => setOpenPackModal(null), onUnlocked: (id) => {
+  } }, /* @__PURE__ */ React.createElement(Icon, { name: "all", size: 15 }), " Show all prompts")) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { className: "pa-grid", style: { opacity: stale ? 0.55 : 1, transition: "opacity .15s ease" } }, displayPrompts.map((p, i) => /* @__PURE__ */ React.createElement(PromptCard, { key: p.id, prompt: p, category: catMap[p.cat] || CATEGORIES[0], index: i, onOpen: handleOpenPrompt, isSaved: savedIds.has(p.id), onSave: toggleSave, onCopy: showToast, onXP: addXP }))), !showSaved && displayTotal > limit && /* @__PURE__ */ React.createElement("div", { style: { textAlign: "center", marginTop: 28 } }, /* @__PURE__ */ React.createElement("button", { className: "pa-btn pa-btn-ghost", style: { display: "inline-flex", flex: "none", padding: "0 22px" }, onClick: () => setLimit((l) => l + PAGE) }, /* @__PURE__ */ React.createElement(Icon, { name: "layers", size: 15 }), " Show more")))), /* @__PURE__ */ React.createElement(HowItWorks, { steps: STEPS }), /* @__PURE__ */ React.createElement(Tools, { tools: TOOLS }), /* @__PURE__ */ React.createElement(Footer, { onBadge: () => setShowBadge(true) }), /* @__PURE__ */ React.createElement(RecentTray, { recent: recentPrompts, catMap, onOpen: handleOpenPrompt, onClear: clearRecent }), openPrompt && !openPrompt.isSponsored && /* @__PURE__ */ React.createElement(CustomizeModal, { prompt: openPrompt, category: catMap[openPrompt.cat] || CATEGORIES[0], onClose: () => setOpenPrompt(null) }), openPackModal && /* @__PURE__ */ React.createElement(PackUnlockModal, { pack: openPackModal, onClose: () => setOpenPackModal(null), onUnlocked: (id) => {
     unlockPack(id);
     setOpenPackModal(null);
   } }), showBadge && /* @__PURE__ */ React.createElement(BadgeModal, { onClose: () => setShowBadge(false) }), tipPhase === "open" && /* @__PURE__ */ React.createElement("div", { className: "tip-backdrop", onClick: () => setTipPhase("idle") }, /* @__PURE__ */ React.createElement("div", { className: "tip-card", onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("button", { className: "tip-close", onClick: () => setTipPhase("idle") }, "\u2715"), /* @__PURE__ */ React.createElement("div", { className: "tip-header" }, /* @__PURE__ */ React.createElement("span", { className: "tip-emoji" }, "\u2615"), /* @__PURE__ */ React.createElement("h2", null, "Buy me a chai"), /* @__PURE__ */ React.createElement("p", null, "PromptUndo is free forever. If it saved you time, a small tip keeps it alive!")), /* @__PURE__ */ React.createElement("p", { className: "tip-pick-label" }, "Pick an amount"), /* @__PURE__ */ React.createElement("div", { className: "tip-amounts" }, TIP_PRESETS.map((p) => /* @__PURE__ */ React.createElement("button", { key: p, className: "tip-amount-btn" + (tipSel === p && !tipCustom ? " is-active" : ""), onClick: () => {

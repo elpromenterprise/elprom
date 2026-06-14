@@ -1,6 +1,33 @@
 /* PromptUndo — main app  */
 const { useState, useEffect, useMemo, useRef, useDeferredValue } = React;
 
+// ── XP System ─────────────────────────────────────────────────────────────────
+const XP_CONFIG = {
+  copy: 10,
+  save: 5,
+  customize: 15,
+  donate: 50,
+  levelUp: 100,
+};
+
+const LEVEL_THRESHOLDS = [0, 100, 250, 450, 700, 1000, 1350, 1750, 2200, 2700];
+const LEVEL_EMOJIS = ['🌱', '🌿', '🍀', '🌾', '🌳', '🌲', '🏆', '⭐', '✨', '🚀'];
+
+function getLevelFromXP(xp) {
+  for (let i = LEVEL_THRESHOLDS.length - 1; i >= 0; i--) {
+    if (xp >= LEVEL_THRESHOLDS[i]) return i;
+  }
+  return 0;
+}
+
+function getXPForLevel(level) {
+  return LEVEL_THRESHOLDS[Math.min(level, LEVEL_THRESHOLDS.length - 1)] || 0;
+}
+
+function getNextLevelXP(level) {
+  return LEVEL_THRESHOLDS[Math.min(level + 1, LEVEL_THRESHOLDS.length - 1)] || LEVEL_THRESHOLDS[LEVEL_THRESHOLDS.length - 1];
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 function fmtBig(n) {
   if (n >= 100000) return (n / 100000).toFixed(1).replace(/\.0$/, '') + 'L';
@@ -62,6 +89,42 @@ const SPONSORED_SLOT = {
   sponsorCta: 'Try Canva Free →',
 };
 
+// ── XP Bar Component ─────────────────────────────────────────────────────────
+function XPBar({ xp, level }) {
+  const nextLevelXP = getNextLevelXP(level);
+  const currentLevelXP = getXPForLevel(level);
+  const progress = ((xp - currentLevelXP) / (nextLevelXP - currentLevelXP)) * 100;
+  return (
+    <div className="pa-xp-bar">
+      <div className="pa-xp-fill" style={{ width: progress + '%' }} />
+    </div>
+  );
+}
+
+// ── XP Pop Animation Component ────────────────────────────────────────────────
+function XPPop({ x, y, amount, onDone }) {
+  useEffect(() => {
+    const timer = setTimeout(onDone, 800);
+    return () => clearTimeout(timer);
+  }, [onDone]);
+  return <div className="pa-xp-pop" style={{ left: x + 'px', top: y + 'px' }}>{'+' + amount + ' XP'}</div>;
+}
+
+// ── Level Up Celebration ──────────────────────────────────────────────────────
+function LevelUpCelebration({ level, onDismiss }) {
+  useEffect(() => {
+    const timer = setTimeout(onDismiss, 2800);
+    return () => clearTimeout(timer);
+  }, [onDismiss]);
+  return (
+    <div className="pa-level-up">
+      <div className="pa-level-up-emoji">{LEVEL_EMOJIS[level] || '⭐'}</div>
+      <div className="pa-level-up-text">{'Level ' + level + ' Unlocked!'}</div>
+      <div className="pa-level-up-sub">{'Keep exploring to reach the next level'}</div>
+    </div>
+  );
+}
+
 // ── Scroll reveal ─────────────────────────────────────────────────────────────
 function Reveal({ children, delay = 0, className = '', tag = 'div' }) {
   const ref = useRef(null);
@@ -105,9 +168,10 @@ function CountUp({ end, suffix = '', dur = 1200 }) {
 }
 
 // ── Copy button with ripple ───────────────────────────────────────────────────
-function CopyButton({ text, onCopy, label }) {
+function CopyButton({ text, onCopy, label, onXP, ref: btnRef }) {
   const [copied, setCopied] = useState(false);
   const [ripple, setRipple] = useState(false);
+  const localRef = useRef(null);
   const onClick = e => {
     e.stopPropagation();
     navigator.clipboard && navigator.clipboard.writeText(text);
@@ -115,9 +179,10 @@ function CopyButton({ text, onCopy, label }) {
     setTimeout(() => setRipple(false), 520);
     setTimeout(() => setCopied(false), 1400);
     onCopy && onCopy();
+    if (onXP) onXP(10, localRef.current);
   };
   return (
-    <button className={'pa-btn pa-btn-ghost pa-copy-btn' + (copied ? ' is-copied' : '') + (ripple ? ' is-rippling' : '')} onClick={onClick}>
+    <button ref={localRef} className={'pa-btn pa-btn-ghost pa-copy-btn' + (copied ? ' is-copied' : '') + (ripple ? ' is-rippling' : '')} onClick={onClick}>
       <Icon name={copied ? 'check' : 'copy'} size={15} />
       {copied ? 'Copied' : (label || 'Copy')}
     </button>
@@ -338,7 +403,7 @@ function BadgeModal({ onClose }) {
 }
 
 // ── Prompt Card ───────────────────────────────────────────────────────────────
-function PromptCard({ prompt, category, index, onOpen, isSaved, onSave, onCopy }) {
+function PromptCard({ prompt, category, index, onOpen, isSaved, onSave, onCopy, onXP }) {
   const blanks = (prompt.prompt.match(/\[([A-Z0-9_ ]+)\]/g) || []);
   const count = new Set(blanks.map(b => b.replace(/[\[\]]/g, '').trim())).size;
   const wordCount = prompt.prompt.trim().split(/\s+/).length;
@@ -410,7 +475,7 @@ function PromptCard({ prompt, category, index, onOpen, isSaved, onSave, onCopy }
               </span>
             )}
             <span className="pa-blanks-tag"><Icon name="brackets" size={12} /> {count}</span>
-            <button className={'pa-save-btn' + (isSaved ? ' is-saved' : '')} onClick={e => { e.stopPropagation(); onSave(prompt); }} title={isSaved ? 'Unsave' : 'Save'}>
+            <button className={'pa-save-btn' + (isSaved ? ' is-saved' : '')} onClick={e => { e.stopPropagation(); onSave(prompt); if (onXP && !isSaved) onXP(5, e.target); }} title={isSaved ? 'Unsave' : 'Save'}>
               {isSaved ? '♥' : '♡'}
             </button>
             <button className="pa-share-btn" onClick={sharePrompt} title="Share prompt">
@@ -431,10 +496,10 @@ function PromptCard({ prompt, category, index, onOpen, isSaved, onSave, onCopy }
           <span className="pa-word-count">{wordCount}{'w'}</span>
         </div>
         <div className="pa-card-actions">
-          <button className="pa-btn pa-btn-primary" onClick={e => { e.stopPropagation(); onOpen(prompt); }}>
+          <button className="pa-btn pa-btn-primary" onClick={e => { e.stopPropagation(); onOpen(prompt); if (onXP) onXP(15, e.target); }}>
             <Icon name="wand" size={15} /> {'Customize'}
           </button>
-          <CopyButton text={prompt.prompt} onCopy={() => onCopy && onCopy('Prompt copied ✓')} />
+          <CopyButton text={prompt.prompt} onCopy={() => onCopy && onCopy('Prompt copied ✓')} onXP={onXP} />
           <div className="pa-ai-wrap" ref={aiRef} onClick={e => e.stopPropagation()}>
             <button className={'pa-btn pa-ai-btn' + (showAI ? ' is-open' : '')} onClick={() => setShowAI(v => !v)}>
               {'✦ Try AI'} <span className="pa-ai-chevron">{'▾'}</span>
@@ -634,6 +699,38 @@ function App() {
   const PAGE = 60;
   const [limit, setLimit] = useState(PAGE);
 
+  // ── XP System ───────────────────────────────────────────────────────────────
+  const [xp, setXP] = useState(() => {
+    try { return parseInt(localStorage.getItem('pa_xp') || '0', 10); } catch(e) { return 0; }
+  });
+  const currLevel = getLevelFromXP(xp);
+  const [xpPopups, setXpPopups] = useState([]);
+  const [levelUpShow, setLevelUpShow] = useState(false);
+  const [levelUpLevel, setLevelUpLevel] = useState(0);
+
+  function addXP(amount, fromElement) {
+    const oldLevel = getLevelFromXP(xp);
+    const newXP = xp + amount;
+    const newLevel = getLevelFromXP(newXP);
+
+    setXP(newXP);
+    try { localStorage.setItem('pa_xp', String(newXP)); } catch(e) {}
+
+    if (fromElement) {
+      const rect = fromElement.getBoundingClientRect();
+      const popId = Math.random();
+      setXpPopups(prev => [...prev, { id: popId, x: rect.left + rect.width / 2, y: rect.top, amount }]);
+      setTimeout(() => {
+        setXpPopups(prev => prev.filter(p => p.id !== popId));
+      }, 800);
+    }
+
+    if (newLevel > oldLevel) {
+      setLevelUpLevel(newLevel);
+      setLevelUpShow(true);
+    }
+  }
+
   // ── Dark mode ─────────────────────────────────────────────────────────────
   const [dark, setDark] = useState(() => {
     try { const s = localStorage.getItem('pa_theme'); if (s) return s === 'dark'; } catch(e) {}
@@ -790,7 +887,7 @@ function App() {
       try {
         const { amt, ts } = JSON.parse(raw);
         localStorage.removeItem('pa_tip');
-        if (Date.now() - ts < 600000) { setTipSel(amt); setTipCoins(makeTipCoins()); setTipPhase('celebrate'); }
+        if (Date.now() - ts < 600000) { setTipSel(amt); setTipCoins(makeTipCoins()); setTipPhase('celebrate'); addXP(50); }
       } catch(e) { try { localStorage.removeItem('pa_tip'); } catch(e2) {} }
     }
     checkReturn();
@@ -903,6 +1000,17 @@ function App() {
 
   return (
     <div id="top">
+      {/* ── XP Bar ──────────────────────────────────────────────────────── */}
+      <XPBar xp={xp} level={currLevel} />
+
+      {/* ── XP Popups ───────────────────────────────────────────────────── */}
+      {xpPopups.map(pop => (
+        <XPPop key={pop.id} x={pop.x} y={pop.y} amount={pop.amount} onDone={() => {}} />
+      ))}
+
+      {/* ── Level Up Celebration ────────────────────────────────────────── */}
+      {levelUpShow && <LevelUpCelebration level={levelUpLevel} onDismiss={() => setLevelUpShow(false)} />}
+
       {/* ── Nav ─────────────────────────────────────────────────────────── */}
       <nav className={'pa-nav' + (scrolled ? ' is-scrolled' : '')}>
         <div className="pa-nav-inner">
@@ -970,7 +1078,7 @@ function App() {
             <>
               <div className="pa-grid" style={{ opacity: stale ? 0.55 : 1, transition: 'opacity .15s ease' }}>
                 {displayPrompts.map((p, i) => (
-                  <PromptCard key={p.id} prompt={p} category={catMap[p.cat] || CATEGORIES[0]} index={i} onOpen={handleOpenPrompt} isSaved={savedIds.has(p.id)} onSave={toggleSave} onCopy={showToast} />
+                  <PromptCard key={p.id} prompt={p} category={catMap[p.cat] || CATEGORIES[0]} index={i} onOpen={handleOpenPrompt} isSaved={savedIds.has(p.id)} onSave={toggleSave} onCopy={showToast} onXP={addXP} />
                 ))}
               </div>
               {!showSaved && displayTotal > limit && (
