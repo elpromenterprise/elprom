@@ -6,7 +6,10 @@
   "description": "PromptUndo — free, copy-paste AI prompts for Indian creators. Static site (CDN React + Babel) with a data layer generated from src/data/prompts.",
   "scripts": {
     "data": "node scripts/build-data.mjs",
-    "dev": "node scripts/serve.mjs",
-    "build": "node scripts/build-data.mjs"
+    "dev": "node scripts/compile-jsx.mjs && node scripts/serve.mjs",
+    "build": "node scripts/build-data.mjs && node scripts/compile-jsx.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
   }
 }

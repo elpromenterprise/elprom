@@ -139,14 +139,14 @@ function Hero({ query, setQuery, totalLabel }) {
             <span className="pa-hero-title-2">Just copy a prompt that works.</span>
           </h1>
           <p className="pa-hero-sub">
-            A free library of fill-in-the-blank AI prompts for India’s creators and small businesses.
-            Pick one, add your details, copy, paste into ChatGPT, Claude or Gemini. That’s the whole thing.
+            A free library of fill-in-the-blank AI prompts for India's creators and small businesses.
+            Pick one, add your details, copy, paste into ChatGPT, Claude or Gemini. That's the whole thing.
           </p>
 
           <div className="pa-search">
             <span className="pa-search-icon"><Icon name="search" size={20} /></span>
             <input className="pa-search-input" value={query} onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search “Reel hook”, “Diwali sale”, “caption”…" />
+              placeholder='Search "Reel hook", "Diwali sale", "caption"...' />
             {query
               ? <button className="pa-search-clear" onClick={() => setQuery('')} aria-label="Clear"><Icon name="close" size={13} /></button>
               : <kbd className="pa-search-kbd">{totalLabel}+</kbd>}
@@ -218,7 +218,7 @@ function Tools({ tools }) {
     <section className="pa-section" id="tools">
       <Reveal><div className="pa-section-head">
         <span className="pa-kicker">The kit</span>
-        <h2 className="pa-section-title">Tools we’d actually recommend</h2>
+        <h2 className="pa-section-title">Tools we'd actually recommend</h2>
         <p className="pa-section-sub">Everything you need to make, sell, and grow.</p>
       </div></Reveal>
       <div className="pa-tools">
@@ -250,7 +250,7 @@ function Footer() {
       <div className="pa-footer-inner">
         <div className="pa-footer-brand">
           <div className="pa-logo"><span className="pa-logo-mark"><Icon name="spark" size={16} /></span> PromptUndo</div>
-          <p className="pa-footer-mission">A free, forever-open library of AI prompts for India’s creators and small businesses.</p>
+          <p className="pa-footer-mission">A free, forever-open library of AI prompts for India's creators and small businesses.</p>
         </div>
         <div className="pa-footer-col">
           <span className="pa-footer-h">Explore</span>
@@ -311,7 +311,7 @@ function App() {
     return c;
   }, []);
 
-  // Authored search index — built once, includes hint text so “diwali” finds [FESTIVAL] prompts
+  // Authored search index — built once, includes hint text so "diwali" finds [FESTIVAL] prompts
   const authoredIndex = useMemo(() => {
     const hints = HINTS || {};
     const re = /\[([A-Z0-9_ ]+)\]/g;
@@ -372,7 +372,7 @@ function App() {
     }
 
     // Niche filter: if query matches a city/niche name, narrow to those niches
-    // so “yoga mumbai” shows yoga prompts for Mumbai specifically
+    // so "yoga mumbai" shows yoga prompts for Mumbai specifically
     let effectiveNiches;
     if (!words.length) {
       effectiveNiches = NICHES;
@@ -420,14 +420,14 @@ function App() {
   }, [authoredFiltered, matchedBPs, effectiveNiches, limit]);
 
   return (
-    <div id=”top”>
+    <div id="top">
       <nav className={'pa-nav' + (scrolled ? ' is-scrolled' : '')}>
-        <div className=”pa-nav-inner”>
-          <div className=”pa-logo”><span className=”pa-logo-mark”><Icon name=”spark” size={16} /></span> PromptUndo</div>
-          <div className=”pa-nav-links”>
-            <a href=”#how”>How it works</a>
-            <a href=”#tools”>Tools</a>
-            <span className=”pa-nav-free”><Icon name=”infinity” size={13} /> Free forever</span>
+        <div className="pa-nav-inner">
+          <div className="pa-logo"><span className="pa-logo-mark"><Icon name="spark" size={16} /></span> PromptUndo</div>
+          <div className="pa-nav-links">
+            <a href="#how">How it works</a>
+            <a href="#tools">Tools</a>
+            <span className="pa-nav-free"><Icon name="infinity" size={13} /> Free forever</span>
           </div>
         </div>
       </nav>
@@ -436,36 +436,36 @@ function App() {
       <Stats />
       <CategoryBar categories={CATEGORIES} counts={counts} active={activeCat} onSelect={setActiveCat} />
 
-      <main className=”pa-main”>
-        <div className=”pa-results-bar”>
-          <span className=”pa-results-count”>
+      <main className="pa-main">
+        <div className="pa-results-bar">
+          <span className="pa-results-count">
             <strong>{totalFiltered > 9999 ? fmtBig(totalFiltered) + '+' : totalFiltered}</strong> {totalFiltered === 1 ? 'prompt' : 'prompts'}
-            {activeCat !== 'all' && <span className=”pa-results-cat”> in {catMap[activeCat].name}</span>}
-            {query && <span className=”pa-results-cat”> for “{query}”</span>}
+            {activeCat !== 'all' && <span className="pa-results-cat"> in {catMap[activeCat].name}</span>}
+            {query && <span className="pa-results-cat"> for "{query}"</span>}
           </span>
         </div>
 
         {totalFiltered === 0 ? (
-          <div className=”pa-empty”>
-            <div className=”pa-empty-icon”><Icon name=”search” size={26} /></div>
-            <h3 className=”pa-empty-title”>No prompts match that yet</h3>
-            <p className=”pa-empty-text”>Try a broader keyword — or browse all 16 categories.</p>
-            <button className=”pa-btn pa-btn-primary” onClick={() => { setQuery(''); setActiveCat('all'); }}>
-              <Icon name=”all” size={15} /> Show all prompts
+          <div className="pa-empty">
+            <div className="pa-empty-icon"><Icon name="search" size={26} /></div>
+            <h3 className="pa-empty-title">No prompts match that yet</h3>
+            <p className="pa-empty-text">Try a broader keyword — or browse all 16 categories.</p>
+            <button className="pa-btn pa-btn-primary" onClick={() => { setQuery(''); setActiveCat('all'); }}>
+              <Icon name="all" size={15} /> Show all prompts
             </button>
           </div>
         ) : (
           <>
-            <div className=”pa-grid” style={{ opacity: stale ? 0.55 : 1, transition: 'opacity .15s ease' }}>
+            <div className="pa-grid" style={{ opacity: stale ? 0.55 : 1, transition: 'opacity .15s ease' }}>
               {visible.map((p, i) => (
                 <PromptCard key={p.id} prompt={p} category={catMap[p.cat]} index={i} onOpen={setOpenPrompt} />
               ))}
             </div>
             {totalFiltered > limit && (
               <div style={{ textAlign: 'center', marginTop: 28 }}>
-                <button className=”pa-btn pa-btn-ghost” style={{ display: 'inline-flex', flex: 'none', padding: '0 22px' }}
+                <button className="pa-btn pa-btn-ghost" style={{ display: 'inline-flex', flex: 'none', padding: '0 22px' }}
                   onClick={() => setLimit(l => l + PAGE)}>
-                  <Icon name=”layers” size={15} /> Show more
+                  <Icon name="layers" size={15} /> Show more
                 </button>
               </div>
             )}
