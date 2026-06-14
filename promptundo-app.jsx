@@ -14,14 +14,12 @@ function Reveal({ children, delay = 0, className = '', tag = 'div' }) {
   useEffect(() => {
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setSeen(true); return; }
     const el = ref.current; if (!el) return;
-    // already in view on mount?
     const r = el.getBoundingClientRect();
     if (r.top < (window.innerHeight || 800) && r.bottom > 0) { setSeen(true); return; }
     const io = new IntersectionObserver((entries) => {
       entries.forEach(e => { if (e.isIntersecting) { setSeen(true); io.disconnect(); } });
     }, { threshold: 0.12, rootMargin: '0px 0px -40px 0px' });
     io.observe(el);
-    // safety: never leave content stuck hidden
     const fallback = setTimeout(() => setSeen(true), 2000);
     return () => { io.disconnect(); clearTimeout(fallback); };
   }, []);
@@ -54,33 +52,68 @@ function CountUp({ end, suffix = '', dur = 1200 }) {
       entries.forEach(e => { if (e.isIntersecting) { run(); io.disconnect(); } });
     }, { threshold: 0.5 });
     io.observe(el);
-    const fallback = setTimeout(run, 2200); // never leave a number stuck at 0
+    const fallback = setTimeout(run, 2200);
     return () => { io.disconnect(); clearTimeout(fallback); };
   }, [end]);
   return <span ref={ref}>{val}{suffix}</span>;
 }
 
-// ── Reusable copy button (card secondary) ────────────────────────────────────
-function CopyButton({ text }) {
+// ── Copy button with ripple ──────────────────────────────────────────────────
+function CopyButton({ text, onCopy, label }) {
   const [copied, setCopied] = useState(false);
+  const [ripple, setRipple] = useState(false);
   const onClick = (e) => {
     e.stopPropagation();
     navigator.clipboard && navigator.clipboard.writeText(text);
     setCopied(true);
+    setRipple(true);
+    setTimeout(() => setRipple(false), 520);
     setTimeout(() => setCopied(false), 1400);
+    onCopy && onCopy();
   };
   return (
-    <button className={'pa-btn pa-btn-ghost' + (copied ? ' is-copied' : '')} onClick={onClick}>
+    <button
+      className={'pa-btn pa-btn-ghost pa-copy-btn' + (copied ? ' is-copied' : '') + (ripple ? ' is-rippling' : '')}
+      onClick={onClick}
+    >
       <Icon name={copied ? 'check' : 'copy'} size={15} />
-      {copied ? 'Copied' : 'Copy'}
+      {label ? (copied ? 'Copied' : label) : (copied ? 'Copied' : 'Copy')}
     </button>
   );
 }
 
+// ── AI tool options ───────────────────────────────────────────────────────────
+const AI_TOOLS = [
+  { name: 'ChatGPT',    url: 'https://chatgpt.com/',              color: '#10A37F', sym: 'G' },
+  { name: 'Claude',     url: 'https://claude.ai/',                color: '#D97706', sym: 'C' },
+  { name: 'Gemini',     url: 'https://gemini.google.com/',        color: '#4285F4', sym: '✦' },
+  { name: 'Grok',       url: 'https://x.com/i/grok',             color: '#9333EA', sym: 'X' },
+  { name: 'Perplexity', url: 'https://www.perplexity.ai/',        color: '#20B2AA', sym: 'P' },
+  { name: 'Copilot',    url: 'https://copilot.microsoft.com/',    color: '#0078D4', sym: 'M' },
+];
+
 // ── Prompt card ───────────────────────────────────────────────────────────────
-function PromptCard({ prompt, category, index, onOpen }) {
+function PromptCard({ prompt, category, index, onOpen, isSaved, onSave, onCopy }) {
   const blanks = (prompt.prompt.match(/\[([A-Z0-9_ ]+)\]/g) || []);
   const count = new Set(blanks.map(b => b.replace(/[\[\]]/g, '').trim())).size;
+  const wordCount = prompt.prompt.trim().split(/\s+/).length;
+  const [showAI, setShowAI] = useState(false);
+  const aiRef = useRef(null);
+
+  useEffect(() => {
+    if (!showAI) return;
+    function onOut(e) { if (aiRef.current && !aiRef.current.contains(e.target)) setShowAI(false); }
+    document.addEventListener('mousedown', onOut);
+    return () => document.removeEventListener('mousedown', onOut);
+  }, [showAI]);
+
+  function launchAI(url, name) {
+    navigator.clipboard?.writeText(prompt.prompt);
+    window.open(url, '_blank', 'noopener,noreferrer');
+    onCopy && onCopy('Copied! Paste in ' + name + ' ↗');
+    setShowAI(false);
+  }
+
   return (
     <Reveal delay={(index % 9) * 55}>
       <article className="pa-card" onClick={() => onOpen(prompt)}>
@@ -89,19 +122,56 @@ function PromptCard({ prompt, category, index, onOpen }) {
             <span className="pa-cat-chip-icon"><Icon name={category.id} size={15} /></span>
             {category.name}
           </span>
-          <span className="pa-blanks-tag"><Icon name="brackets" size={12} /> {count}</span>
+          <div className="pa-card-top-right">
+            <span className="pa-blanks-tag"><Icon name="brackets" size={12} /> {count}</span>
+            <button
+              className={'pa-save-btn' + (isSaved ? ' is-saved' : '')}
+              onClick={e => { e.stopPropagation(); onSave(prompt); }}
+              title={isSaved ? 'Remove from saved' : 'Save prompt'}
+              aria-label={isSaved ? 'Unsave' : 'Save'}
+            >
+              {isSaved ? '♥' : '♡'}
+            </button>
+          </div>
         </div>
         <h3 className="pa-card-title">{prompt.title}</h3>
         <p className="pa-card-desc">{prompt.desc}</p>
-        <div className="pa-card-preview"><span className="pa-card-preview-label">PROMPT</span>{prompt.prompt}</div>
-        <div className="pa-card-tags">
-          {prompt.tags.slice(0, 3).map(t => <span key={t} className="pa-tag">#{t}</span>)}
+        <div className="pa-card-preview">
+          <span className="pa-card-preview-label">PROMPT</span>
+          {prompt.prompt}
+        </div>
+        <div className="pa-card-footer">
+          <div className="pa-card-tags">
+            {prompt.tags.slice(0, 3).map(t => <span key={t} className="pa-tag">#{t}</span>)}
+          </div>
+          <span className="pa-word-count">{wordCount}w</span>
         </div>
         <div className="pa-card-actions">
-          <button className="pa-btn pa-btn-primary" onClick={(e) => { e.stopPropagation(); onOpen(prompt); }}>
+          <button className="pa-btn pa-btn-primary" onClick={e => { e.stopPropagation(); onOpen(prompt); }}>
             <Icon name="wand" size={15} /> Customize
           </button>
-          <CopyButton text={prompt.prompt} />
+          <CopyButton text={prompt.prompt} onCopy={() => onCopy && onCopy('Prompt copied ✓')} />
+          <div className="pa-ai-wrap" ref={aiRef} onClick={e => e.stopPropagation()}>
+            <button
+              className={'pa-btn pa-ai-btn' + (showAI ? ' is-open' : '')}
+              onClick={() => setShowAI(v => !v)}
+              title="Try in an AI tool"
+            >
+              {'✦ Try AI'} <span className="pa-ai-chevron">{'▾'}</span>
+            </button>
+            {showAI && (
+              <div className="pa-ai-dropdown">
+                {AI_TOOLS.map(t => (
+                  <button key={t.name} className="pa-ai-option" onClick={() => launchAI(t.url, t.name)}>
+                    <span className="pa-ai-dot" style={{ background: t.color + '22', color: t.color }}>
+                      {t.sym}
+                    </span>
+                    {t.name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </article>
     </Reveal>
@@ -126,30 +196,57 @@ function CategoryBar({ categories, counts, active, onSelect }) {
 }
 
 // ── Hero ───────────────────────────────────────────────────────────────────────
-function Hero({ query, setQuery, totalLabel }) {
+function Hero({ query, setQuery, totalLabel, categories, activeCat, onSetCat, searchRef, onSearchKey }) {
   const chips = ['Free forever', 'No login', 'Hinglish-friendly', '₹0'];
   return (
     <header className="pa-hero">
       <div className="pa-aurora"><span className="pa-aurora-a" /><span className="pa-aurora-b" /><span className="pa-aurora-c" /></div>
       <div className="pa-hero-inner">
         <div className="pa-hero-copy">
-          <span className="pa-eyebrow"><Icon name="spark" size={13} /> <strong style={{ fontWeight: 700 }}>{totalLabel}+</strong>&nbsp;free prompts · no sign-up</span>
+          <span className="pa-eyebrow">
+            <Icon name="spark" size={13} /> <strong style={{ fontWeight: 700 }}>{totalLabel}+</strong>&nbsp;free prompts &middot; no sign-up
+          </span>
           <h1 className="pa-hero-title">
             Stop fighting with AI.<br />
             <span className="pa-hero-title-2">Just copy a prompt that works.</span>
           </h1>
           <p className="pa-hero-sub">
-            A free library of fill-in-the-blank AI prompts for India's creators and small businesses.
-            Pick one, add your details, copy, paste into ChatGPT, Claude or Gemini. That's the whole thing.
+            A free library of fill-in-the-blank AI prompts for India&apos;s creators and small businesses.
+            Pick one, add your details, copy, paste into ChatGPT, Claude or Gemini. That&apos;s the whole thing.
           </p>
 
           <div className="pa-search">
             <span className="pa-search-icon"><Icon name="search" size={20} /></span>
-            <input className="pa-search-input" value={query} onChange={(e) => setQuery(e.target.value)}
-              placeholder='Search "Reel hook", "Diwali sale", "caption"...' />
+            <input
+              ref={searchRef}
+              className="pa-search-input"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={onSearchKey}
+              placeholder='Search "Reel hook", "Diwali sale", "caption"...'
+              aria-label="Search prompts"
+            />
             {query
-              ? <button className="pa-search-clear" onClick={() => setQuery('')} aria-label="Clear"><Icon name="close" size={13} /></button>
-              : <kbd className="pa-search-kbd">{totalLabel}+</kbd>}
+              ? <button className="pa-search-clear" onClick={() => setQuery('')} aria-label="Clear search"><Icon name="close" size={13} /></button>
+              : <kbd className="pa-search-kbd">/ to search</kbd>}
+          </div>
+
+          <div className="pa-quick-cats" role="group" aria-label="Quick category filter">
+            <button
+              className={'pa-quick-cat' + (activeCat === 'all' ? ' is-active' : '')}
+              onClick={() => onSetCat('all')}
+            >
+              All
+            </button>
+            {categories.filter(c => c.id !== 'all').map(c => (
+              <button
+                key={c.id}
+                className={'pa-quick-cat' + (activeCat === c.id ? ' is-active' : '')}
+                onClick={() => onSetCat(c.id)}
+              >
+                {c.name}
+              </button>
+            ))}
           </div>
 
           <div className="pa-trust">
@@ -165,7 +262,7 @@ function Hero({ query, setQuery, totalLabel }) {
   );
 }
 
-// ── Credibility strip ──────────────────────────────────────────────────────────
+// ── Stats strip ────────────────────────────────────────────────────────────────
 function Stats() {
   const items = [
     { n: window.PA.VIRTUAL_TOTAL, s: '+', label: 'ready-to-use prompts' },
@@ -218,7 +315,7 @@ function Tools({ tools }) {
     <section className="pa-section" id="tools">
       <Reveal><div className="pa-section-head">
         <span className="pa-kicker">The kit</span>
-        <h2 className="pa-section-title">Tools we'd actually recommend</h2>
+        <h2 className="pa-section-title">Tools we&apos;d actually recommend</h2>
         <p className="pa-section-sub">Everything you need to make, sell, and grow.</p>
       </div></Reveal>
       <div className="pa-tools">
@@ -238,7 +335,7 @@ function Tools({ tools }) {
           </Reveal>
         ))}
       </div>
-      <p className="pa-tools-note">Some links are affiliate links — they keep PromptUndo free forever, at no cost to you.</p>
+      <p className="pa-tools-note">Some links are affiliate links &mdash; they keep PromptUndo free forever, at no cost to you.</p>
     </section>
   );
 }
@@ -250,7 +347,7 @@ function Footer() {
       <div className="pa-footer-inner">
         <div className="pa-footer-brand">
           <div className="pa-logo"><span className="pa-logo-mark"><Icon name="spark" size={16} /></span> PromptUndo</div>
-          <p className="pa-footer-mission">A free, forever-open library of AI prompts for India's creators and small businesses.</p>
+          <p className="pa-footer-mission">A free, forever-open library of AI prompts for India&apos;s creators and small businesses.</p>
         </div>
         <div className="pa-footer-col">
           <span className="pa-footer-h">Explore</span>
@@ -265,7 +362,7 @@ function Footer() {
           <span className="pa-footer-promise"><TriFlag w={17} /> Made in India</span>
         </div>
       </div>
-      <div className="pa-footer-bar">© 2026 PromptUndo · Copy, fill, paste, done.</div>
+      <div className="pa-footer-bar">&copy; 2026 PromptUndo &middot; Copy, fill, paste, done.</div>
     </footer>
   );
 }
@@ -281,6 +378,7 @@ function App() {
   const TOOLS = pa.TOOLS || [];
   const STEPS = pa.STEPS || [];
   const VIRTUAL_TOTAL = pa.VIRTUAL_TOTAL || PROMPTS.length;
+
   const [query, setQuery] = useState('');
   const [activeCat, setActiveCat] = useState('all');
   const [openPrompt, setOpenPrompt] = useState(null);
@@ -288,11 +386,74 @@ function App() {
   const PAGE = 60;
   const [limit, setLimit] = useState(PAGE);
 
+  // ── Dark mode ─────────────────────────────────────────────────────────────
+  const [dark, setDark] = useState(() => {
+    try {
+      const s = localStorage.getItem('pa_theme');
+      if (s) return s === 'dark';
+    } catch(e) {}
+    return !!(window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+  });
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+    try { localStorage.setItem('pa_theme', dark ? 'dark' : 'light'); } catch(e) {}
+  }, [dark]);
+
+  // ── Saved prompts ─────────────────────────────────────────────────────────
+  const [savedPrompts, setSavedPrompts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('pa_saved') || '[]'); } catch(e) { return []; }
+  });
+  const savedIds = useMemo(() => new Set(savedPrompts.map(p => p.id)), [savedPrompts]);
+  const [showSaved, setShowSaved] = useState(false);
+
+  function toggleSave(prompt) {
+    setSavedPrompts(prev => {
+      const exists = prev.some(p => p.id === prompt.id);
+      const next = exists
+        ? prev.filter(p => p.id !== prompt.id)
+        : [...prev, { id: prompt.id, title: prompt.title, desc: prompt.desc, prompt: prompt.prompt, tags: prompt.tags, cat: prompt.cat }];
+      try { localStorage.setItem('pa_saved', JSON.stringify(next)); } catch(e) {}
+      return next;
+    });
+  }
+
+  // ── Toast ─────────────────────────────────────────────────────────────────
+  const [toast, setToast] = useState('');
+  const toastTimer = useRef(null);
+  function showToast(msg) {
+    setToast(msg);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(''), 2200);
+  }
+
+  // ── Refs for scroll + search ──────────────────────────────────────────────
+  const resultsRef = useRef(null);
+  const searchInputRef = useRef(null);
+
+  function onSearchKey(e) {
+    if (e.key === 'Enter') {
+      resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    if (e.key === 'Escape') setQuery('');
+  }
+
+  // / key to focus search
+  useEffect(() => {
+    function onKey(e) {
+      if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    }
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, []);
+
   // ── Donation state ────────────────────────────────────────────────────────
   const TIP_UPI = 'vaibhavvarunmr@okicici';
   const TIP_PHONE = '9745340983';
   const TIP_PRESETS = [10, 20, 30];
-  const [tipPhase, setTipPhase] = useState('idle'); // idle | open | celebrate
+  const [tipPhase, setTipPhase] = useState('idle');
   const [tipSel, setTipSel] = useState(20);
   const [tipCustom, setTipCustom] = useState('');
   const [tipCoins, setTipCoins] = useState([]);
@@ -314,7 +475,6 @@ function App() {
 
   function tipPay() {
     if (tipAmount < 1) return;
-    // Save intent so we can detect when user comes back from UPI app
     try { localStorage.setItem('pa_tip', JSON.stringify({ amt: tipAmount, ts: Date.now() })); } catch(e) {}
     window.location.href = 'upi://pay?pa=' + TIP_UPI + '&pn=PromptUndo&am=' + tipAmount + '&cu=INR&tn=Tip%20for%20PromptUndo';
   }
@@ -333,7 +493,6 @@ function App() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // Detect when user returns from UPI app and show celebration
   useEffect(() => {
     function checkReturn() {
       if (document.visibilityState !== 'visible') return;
@@ -343,21 +502,20 @@ function App() {
       try {
         const { amt, ts } = JSON.parse(raw);
         localStorage.removeItem('pa_tip');
-        if (Date.now() - ts < 600000) { // within 10 minutes
+        if (Date.now() - ts < 600000) {
           setTipSel(amt);
           setTipCoins(makeTipCoins());
           setTipPhase('celebrate');
         }
       } catch(e) { try { localStorage.removeItem('pa_tip'); } catch(e2) {} }
     }
-    checkReturn(); // check on first mount (back-button navigation)
+    checkReturn();
     document.addEventListener('visibilitychange', checkReturn);
     return () => document.removeEventListener('visibilitychange', checkReturn);
   }, []);
 
   const catMap = useMemo(() => { const m = {}; CATEGORIES.forEach(c => m[c.id] = c); return m; }, []);
 
-  // Category counts: authored per cat + blueprints per cat × total niches
   const counts = useMemo(() => {
     const bpPerCat = {};
     BLUEPRINTS.forEach(bp => { bpPerCat[bp.cat] = (bpPerCat[bp.cat] || 0) + 1; });
@@ -370,7 +528,6 @@ function App() {
     return c;
   }, []);
 
-  // Authored search index — built once, includes hint text so "diwali" finds [FESTIVAL] prompts
   const authoredIndex = useMemo(() => {
     const hints = HINTS || {};
     const re = /\[([A-Z0-9_ ]+)\]/g;
@@ -392,7 +549,6 @@ function App() {
     });
   }, []);
 
-  // Blueprint search index — built once (117 entries, trivially fast)
   const bpIndex = useMemo(() => BLUEPRINTS.map(bp => ({
     bp,
     hay: (bp.title + ' ' + bp.desc + ' ' + bp.body + ' ' + bp.tags.join(' ')).toLowerCase(),
@@ -402,11 +558,9 @@ function App() {
 
   const deferredQuery = useDeferredValue(query);
 
-  // Virtual filter: search authored prompts + blueprint templates + niche names
   const { authoredFiltered, matchedBPs, effectiveNiches } = useMemo(() => {
     const words = deferredQuery.trim().toLowerCase().split(/\s+/).filter(Boolean);
 
-    // Authored prompts (same scored search as before)
     const af = [];
     for (const it of authoredIndex) {
       if (activeCat !== 'all' && it.p.cat !== activeCat) continue;
@@ -420,7 +574,6 @@ function App() {
     }
     if (words.length) af.sort((a, b) => b.s - a.s);
 
-    // Blueprint filter (searches title + desc + body + tags)
     const bps = [];
     for (const it of bpIndex) {
       if (activeCat !== 'all' && it.bp.cat !== activeCat) continue;
@@ -430,8 +583,6 @@ function App() {
       if (ok) bps.push(it.bp);
     }
 
-    // Niche filter: if query matches a city/niche name, narrow to those niches
-    // so "yoga mumbai" shows yoga prompts for Mumbai specifically
     let effectiveNiches;
     if (!words.length) {
       effectiveNiches = NICHES;
@@ -450,7 +601,6 @@ function App() {
   const totalFiltered = authoredFiltered.length + matchedBPs.length * effectiveNiches.length;
   const stale = query !== deferredQuery;
 
-  // Materialize only visible cards — authored first, then blueprint × niche on demand
   const visible = useMemo(() => {
     const result = [];
     for (const { p } of authoredFiltered) {
@@ -478,14 +628,52 @@ function App() {
     return result;
   }, [authoredFiltered, matchedBPs, effectiveNiches, limit]);
 
+  // Saved view filter
+  const savedVisible = showSaved ? savedPrompts.filter(p => {
+    if (activeCat !== 'all' && p.cat !== activeCat) return false;
+    if (!query) return true;
+    const q = query.toLowerCase();
+    return p.title.toLowerCase().includes(q) || p.prompt.toLowerCase().includes(q) || (p.tags || []).some(t => t.toLowerCase().includes(q));
+  }) : null;
+
+  const displayPrompts = savedVisible !== null ? savedVisible : visible;
+  const displayTotal = savedVisible !== null ? savedVisible.length : totalFiltered;
+
+  function switchCat(id) {
+    setActiveCat(id);
+    setShowSaved(false);
+  }
+
   return (
     <div id="top">
       <nav className={'pa-nav' + (scrolled ? ' is-scrolled' : '')}>
         <div className="pa-nav-inner">
-          <div className="pa-logo"><span className="pa-logo-mark"><Icon name="spark" size={16} /></span> PromptUndo</div>
+          <div className="pa-logo">
+            <span className="pa-logo-mark"><Icon name="spark" size={16} /></span> PromptUndo
+          </div>
           <div className="pa-nav-links">
             <a href="#how">How it works</a>
             <a href="#tools">Tools</a>
+            {savedPrompts.length > 0 && (
+              <button
+                className={'pa-nav-saved' + (showSaved ? ' is-active' : '')}
+                onClick={() => {
+                  const next = !showSaved;
+                  setShowSaved(next);
+                  if (next) setTimeout(() => resultsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
+                }}
+              >
+                {'♥ Saved ' + savedPrompts.length}
+              </button>
+            )}
+            <button
+              className="pa-dark-btn"
+              onClick={() => setDark(v => !v)}
+              title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={dark ? 'Light mode' : 'Dark mode'}
+            >
+              {dark ? '☀' : '☽'}
+            </button>
             <button className="tip-nav-btn" onClick={() => setTipPhase('open')}>
               {'❤️ Donate'}
             </button>
@@ -494,39 +682,67 @@ function App() {
         </div>
       </nav>
 
-      <Hero query={query} setQuery={setQuery} totalLabel={totalLabel} />
+      <Hero
+        query={query}
+        setQuery={setQuery}
+        totalLabel={totalLabel}
+        categories={CATEGORIES}
+        activeCat={activeCat}
+        onSetCat={switchCat}
+        searchRef={searchInputRef}
+        onSearchKey={onSearchKey}
+      />
       <Stats />
-      <CategoryBar categories={CATEGORIES} counts={counts} active={activeCat} onSelect={setActiveCat} />
+      <CategoryBar categories={CATEGORIES} counts={counts} active={activeCat} onSelect={switchCat} />
 
-      <main className="pa-main">
+      <main className="pa-main" ref={resultsRef}>
         <div className="pa-results-bar">
+          {showSaved && (
+            <button className="pa-back-btn" onClick={() => setShowSaved(false)}>
+              {'← All prompts'}
+            </button>
+          )}
           <span className="pa-results-count">
-            <strong>{totalFiltered > 9999 ? fmtBig(totalFiltered) + '+' : totalFiltered}</strong> {totalFiltered === 1 ? 'prompt' : 'prompts'}
-            {activeCat !== 'all' && <span className="pa-results-cat"> in {catMap[activeCat].name}</span>}
-            {query && <span className="pa-results-cat"> for "{query}"</span>}
+            <strong>{displayTotal > 9999 ? fmtBig(displayTotal) + '+' : displayTotal}</strong>
+            {' '}{displayTotal === 1 ? 'prompt' : 'prompts'}
+            {showSaved && ' saved'}
+            {!showSaved && activeCat !== 'all' && <span className="pa-results-cat"> in {catMap[activeCat] && catMap[activeCat].name}</span>}
+            {query && <span className="pa-results-cat"> for &ldquo;{query}&rdquo;</span>}
           </span>
         </div>
 
-        {totalFiltered === 0 ? (
+        {displayTotal === 0 ? (
           <div className="pa-empty">
             <div className="pa-empty-icon"><Icon name="search" size={26} /></div>
-            <h3 className="pa-empty-title">No prompts match that yet</h3>
-            <p className="pa-empty-text">Try a broader keyword — or browse all 16 categories.</p>
-            <button className="pa-btn pa-btn-primary" onClick={() => { setQuery(''); setActiveCat('all'); }}>
-              <Icon name="all" size={15} /> Show all prompts
+            <h3 className="pa-empty-title">{showSaved ? 'No saved prompts match' : 'No prompts match that yet'}</h3>
+            <p className="pa-empty-text">{showSaved ? 'Try a broader search or clear category filter.' : 'Try a broader keyword — or browse all 16 categories.'}</p>
+            <button className="pa-btn pa-btn-primary" onClick={() => { setQuery(''); setActiveCat('all'); setShowSaved(false); }}>
+              <Icon name="all" size={15} /> {showSaved ? 'Show all saved' : 'Show all prompts'}
             </button>
           </div>
         ) : (
           <>
             <div className="pa-grid" style={{ opacity: stale ? 0.55 : 1, transition: 'opacity .15s ease' }}>
-              {visible.map((p, i) => (
-                <PromptCard key={p.id} prompt={p} category={catMap[p.cat]} index={i} onOpen={setOpenPrompt} />
+              {displayPrompts.map((p, i) => (
+                <PromptCard
+                  key={p.id}
+                  prompt={p}
+                  category={catMap[p.cat] || CATEGORIES[0]}
+                  index={i}
+                  onOpen={setOpenPrompt}
+                  isSaved={savedIds.has(p.id)}
+                  onSave={toggleSave}
+                  onCopy={showToast}
+                />
               ))}
             </div>
-            {totalFiltered > limit && (
+            {!showSaved && displayTotal > limit && (
               <div style={{ textAlign: 'center', marginTop: 28 }}>
-                <button className="pa-btn pa-btn-ghost" style={{ display: 'inline-flex', flex: 'none', padding: '0 22px' }}
-                  onClick={() => setLimit(l => l + PAGE)}>
+                <button
+                  className="pa-btn pa-btn-ghost"
+                  style={{ display: 'inline-flex', flex: 'none', padding: '0 22px' }}
+                  onClick={() => setLimit(l => l + PAGE)}
+                >
                   <Icon name="layers" size={15} /> Show more
                 </button>
               </div>
@@ -543,7 +759,7 @@ function App() {
         <CustomizeModal prompt={openPrompt} category={catMap[openPrompt.cat]} onClose={() => setOpenPrompt(null)} />
       )}
 
-      {/* ── Donation modal ───────────────────────────────────────────────── */}
+      {/* ── Donation modal ───────────────────────────────────────────── */}
       {tipPhase === 'open' && (
         <div className="tip-backdrop" onClick={() => setTipPhase('idle')}>
           <div className="tip-card" onClick={e => e.stopPropagation()}>
@@ -593,7 +809,7 @@ function App() {
         </div>
       )}
 
-      {/* ── Coin celebration ─────────────────────────────────────────────── */}
+      {/* ── Coin celebration ──────────────────────────────────────────── */}
       {tipPhase === 'celebrate' && (
         <div className="tip-celebration" onClick={() => setTipPhase('idle')}>
           {tipCoins.map(c => (
@@ -621,6 +837,9 @@ function App() {
           </div>
         </div>
       )}
+
+      {/* ── Toast notification ────────────────────────────────────────── */}
+      {toast && <div className="pa-toast" role="status" aria-live="polite">{toast}</div>}
     </div>
   );
 }
