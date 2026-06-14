@@ -133,6 +133,94 @@ function Tools({ tools }) {
 function Footer() {
   return /* @__PURE__ */ React.createElement("footer", { className: "pa-footer" }, /* @__PURE__ */ React.createElement("div", { className: "pa-footer-inner" }, /* @__PURE__ */ React.createElement("div", { className: "pa-footer-brand" }, /* @__PURE__ */ React.createElement("div", { className: "pa-logo" }, /* @__PURE__ */ React.createElement("span", { className: "pa-logo-mark" }, /* @__PURE__ */ React.createElement(Icon, { name: "spark", size: 16 })), " PromptUndo"), /* @__PURE__ */ React.createElement("p", { className: "pa-footer-mission" }, "A free, forever-open library of AI prompts for India's creators and small businesses.")), /* @__PURE__ */ React.createElement("div", { className: "pa-footer-col" }, /* @__PURE__ */ React.createElement("span", { className: "pa-footer-h" }, "Explore"), /* @__PURE__ */ React.createElement("a", { href: "#top" }, "All prompts"), /* @__PURE__ */ React.createElement("a", { href: "#how" }, "How it works"), /* @__PURE__ */ React.createElement("a", { href: "#tools" }, "Tools")), /* @__PURE__ */ React.createElement("div", { className: "pa-footer-col" }, /* @__PURE__ */ React.createElement("span", { className: "pa-footer-h" }, "The promise"), /* @__PURE__ */ React.createElement("span", { className: "pa-footer-promise" }, /* @__PURE__ */ React.createElement(Icon, { name: "infinity", size: 15 }), " Free forever"), /* @__PURE__ */ React.createElement("span", { className: "pa-footer-promise" }, /* @__PURE__ */ React.createElement(Icon, { name: "shield", size: 15 }), " No sign-up, no email wall"), /* @__PURE__ */ React.createElement("span", { className: "pa-footer-promise" }, /* @__PURE__ */ React.createElement(TriFlag, { w: 17 }), " Made in India"))), /* @__PURE__ */ React.createElement("div", { className: "pa-footer-bar" }, "\xA9 2026 PromptUndo \xB7 Copy, fill, paste, done."));
 }
+function TipJar() {
+  const UPI_ID = "vaibhavvarunmr@okicici";
+  const PHONE = "9745340983";
+  const PRESETS = [10, 20, 30];
+  const [phase, setPhase] = useState("idle");
+  const [selected, setSelected] = useState(20);
+  const [custom, setCustom] = useState("");
+  const [coins, setCoins] = useState([]);
+  const [copied, setCopied] = useState("");
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+  const amount = custom ? parseInt(custom, 10) || 0 : selected;
+  function generateCoins() {
+    return Array.from({ length: 34 }, (_, i) => ({
+      id: i,
+      x: 2 + Math.random() * 94,
+      size: 36 + Math.random() * 28,
+      dur: 1.5 + Math.random() * 1.8,
+      delay: Math.random() * 2.4,
+      r: (Math.random() > 0.5 ? 1 : -1) * (280 + Math.random() * 440),
+      drift: (Math.random() - 0.5) * 130,
+      type: Math.random() > 0.72 ? "star" : "coin"
+    }));
+  }
+  function pay() {
+    if (amount < 1) return;
+    if (isMobile) {
+      const a = document.createElement("a");
+      a.href = "upi://pay?pa=" + UPI_ID + "&pn=PromptUndo&am=" + amount + "&cu=INR&tn=Tip%20for%20PromptUndo";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+    setCoins(generateCoins());
+    setPhase("celebrate");
+  }
+  function copyText(text, key) {
+    if (navigator.clipboard) navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(""), 1800);
+  }
+  useEffect(() => {
+    if (phase !== "celebrate") return;
+    const t = setTimeout(() => setPhase("idle"), 6e3);
+    return () => clearTimeout(t);
+  }, [phase]);
+  return /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("button", { className: "tip-fab", onClick: () => setPhase("open"), "aria-label": "Support creator" }, /* @__PURE__ */ React.createElement("span", { className: "tip-fab-pulse" }), /* @__PURE__ */ React.createElement("span", null, "\u2615 Support Creator")), phase === "open" && /* @__PURE__ */ React.createElement("div", { className: "tip-backdrop", onClick: () => setPhase("idle") }, /* @__PURE__ */ React.createElement("div", { className: "tip-card", onClick: (e) => e.stopPropagation() }, /* @__PURE__ */ React.createElement("button", { className: "tip-close", onClick: () => setPhase("idle") }, "\u2715"), /* @__PURE__ */ React.createElement("div", { className: "tip-header" }, /* @__PURE__ */ React.createElement("span", { className: "tip-emoji" }, "\u2615"), /* @__PURE__ */ React.createElement("h2", null, "Buy the creator a chai"), /* @__PURE__ */ React.createElement("p", null, "Free forever. But if this saved you time, a small tip means a lot!")), /* @__PURE__ */ React.createElement("div", { className: "tip-amounts" }, PRESETS.map((p) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: p,
+      className: "tip-amount-btn" + (selected === p && !custom ? " is-active" : ""),
+      onClick: () => {
+        setSelected(p);
+        setCustom("");
+      }
+    },
+    "\u20B9",
+    p
+  ))), /* @__PURE__ */ React.createElement("div", { className: "tip-custom" }, /* @__PURE__ */ React.createElement("span", { className: "tip-rupee" }, "\u20B9"), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      className: "tip-custom-input",
+      type: "number",
+      min: "1",
+      step: "1",
+      placeholder: "Custom amount",
+      value: custom,
+      onChange: (e) => setCustom(e.target.value.replace(/\D/g, ""))
+    }
+  )), isMobile ? /* @__PURE__ */ React.createElement("button", { className: "tip-pay-btn", onClick: pay, disabled: amount < 1 }, "Pay \u20B9", amount || "\u2014", " via UPI \u2197") : /* @__PURE__ */ React.createElement("div", { className: "tip-desktop-pay" }, /* @__PURE__ */ React.createElement("div", { className: "tip-upi-box" }, /* @__PURE__ */ React.createElement("span", { className: "tip-upi-label" }, "UPI ID"), /* @__PURE__ */ React.createElement("span", { className: "tip-upi-value" }, UPI_ID), /* @__PURE__ */ React.createElement("button", { className: "tip-copy-btn", onClick: () => copyText(UPI_ID, "upi") }, copied === "upi" ? "\u2713 Copied!" : "Copy")), /* @__PURE__ */ React.createElement("div", { className: "tip-upi-box" }, /* @__PURE__ */ React.createElement("span", { className: "tip-upi-label" }, "GPay / PhonePe"), /* @__PURE__ */ React.createElement("span", { className: "tip-upi-value" }, PHONE), /* @__PURE__ */ React.createElement("button", { className: "tip-copy-btn", onClick: () => copyText(PHONE, "phone") }, copied === "phone" ? "\u2713 Copied!" : "Copy")), /* @__PURE__ */ React.createElement("button", { className: "tip-pay-btn", style: { marginTop: 16 }, onClick: pay, disabled: amount < 1 }, "I've sent \u20B9", amount || "\u2014", " \u2728")), /* @__PURE__ */ React.createElement("p", { className: "tip-fine" }, "No account needed \xB7 Any UPI app works \xB7 Completely optional"))), phase === "celebrate" && /* @__PURE__ */ React.createElement("div", { className: "tip-celebration", onClick: () => setPhase("idle") }, coins.map((c) => /* @__PURE__ */ React.createElement(
+    "span",
+    {
+      key: c.id,
+      className: "tip-particle" + (c.type === "star" ? " is-star" : ""),
+      style: {
+        left: c.x + "%",
+        "--size": c.size + "px",
+        "--dur": c.dur + "s",
+        "--delay": c.delay + "s",
+        "--r": c.r + "deg",
+        "--drift": c.drift + "px"
+      }
+    },
+    c.type === "star" ? "\u2726" : "\u20B9"
+  )), /* @__PURE__ */ React.createElement("div", { className: "tip-thankyou" }, /* @__PURE__ */ React.createElement("span", { className: "tip-big-heart" }, "\u2764\uFE0F"), /* @__PURE__ */ React.createElement("h2", null, "You're incredible!"), /* @__PURE__ */ React.createElement("p", { className: "tip-sent" }, "\u20B9", amount, " \xB7 Thank you so much \u{1F64F}"), /* @__PURE__ */ React.createElement("p", { className: "tip-sub-msg" }, "This keeps PromptUndo free for everyone"), /* @__PURE__ */ React.createElement("button", { className: "tip-dismiss", onClick: (e) => {
+    e.stopPropagation();
+    setPhase("idle");
+  } }, "Keep exploring prompts \u2192"))));
+}
 function App() {
   const pa = window.PA || {};
   const CATEGORIES = pa.CATEGORIES || [];
@@ -301,6 +389,6 @@ function App() {
     },
     /* @__PURE__ */ React.createElement(Icon, { name: "layers", size: 15 }),
     " Show more"
-  )))), /* @__PURE__ */ React.createElement(HowItWorks, { steps: STEPS }), /* @__PURE__ */ React.createElement(Tools, { tools: TOOLS }), /* @__PURE__ */ React.createElement(Footer, null), openPrompt && /* @__PURE__ */ React.createElement(CustomizeModal, { prompt: openPrompt, category: catMap[openPrompt.cat], onClose: () => setOpenPrompt(null) }));
+  )))), /* @__PURE__ */ React.createElement(HowItWorks, { steps: STEPS }), /* @__PURE__ */ React.createElement(Tools, { tools: TOOLS }), /* @__PURE__ */ React.createElement(Footer, null), openPrompt && /* @__PURE__ */ React.createElement(CustomizeModal, { prompt: openPrompt, category: catMap[openPrompt.cat], onClose: () => setOpenPrompt(null) }), /* @__PURE__ */ React.createElement(TipJar, null));
 }
 ReactDOM.createRoot(document.getElementById("root")).render(/* @__PURE__ */ React.createElement(App, null));

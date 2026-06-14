@@ -270,6 +270,151 @@ function Footer() {
   );
 }
 
+// ── Tip jar ──────────────────────────────────────────────────────────────────
+function TipJar() {
+  const UPI_ID = 'vaibhavvarunmr@okicici';
+  const PHONE = '9745340983';
+  const PRESETS = [10, 20, 30];
+  const [phase, setPhase] = useState('idle'); // idle | open | celebrate
+  const [selected, setSelected] = useState(20);
+  const [custom, setCustom] = useState('');
+  const [coins, setCoins] = useState([]);
+  const [copied, setCopied] = useState('');
+  const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+  const amount = custom ? (parseInt(custom, 10) || 0) : selected;
+
+  function generateCoins() {
+    return Array.from({ length: 34 }, (_, i) => ({
+      id: i,
+      x: 2 + Math.random() * 94,
+      size: 36 + Math.random() * 28,
+      dur: 1.5 + Math.random() * 1.8,
+      delay: Math.random() * 2.4,
+      r: (Math.random() > 0.5 ? 1 : -1) * (280 + Math.random() * 440),
+      drift: (Math.random() - 0.5) * 130,
+      type: Math.random() > 0.72 ? 'star' : 'coin',
+    }));
+  }
+
+  function pay() {
+    if (amount < 1) return;
+    if (isMobile) {
+      const a = document.createElement('a');
+      a.href = 'upi://pay?pa=' + UPI_ID + '&pn=PromptUndo&am=' + amount + '&cu=INR&tn=Tip%20for%20PromptUndo';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+    setCoins(generateCoins());
+    setPhase('celebrate');
+  }
+
+  function copyText(text, key) {
+    if (navigator.clipboard) navigator.clipboard.writeText(text);
+    setCopied(key);
+    setTimeout(() => setCopied(''), 1800);
+  }
+
+  // Auto-dismiss celebration after 6s
+  useEffect(() => {
+    if (phase !== 'celebrate') return;
+    const t = setTimeout(() => setPhase('idle'), 6000);
+    return () => clearTimeout(t);
+  }, [phase]);
+
+  return (
+    <>
+      <button className="tip-fab" onClick={() => setPhase('open')} aria-label="Support creator">
+        <span className="tip-fab-pulse" />
+        <span>{'☕ Support Creator'}</span>
+      </button>
+
+      {phase === 'open' && (
+        <div className="tip-backdrop" onClick={() => setPhase('idle')}>
+          <div className="tip-card" onClick={e => e.stopPropagation()}>
+            <button className="tip-close" onClick={() => setPhase('idle')}>{'✕'}</button>
+            <div className="tip-header">
+              <span className="tip-emoji">{'☕'}</span>
+              <h2>{'Buy the creator a chai'}</h2>
+              <p>{'Free forever. But if this saved you time, a small tip means a lot!'}</p>
+            </div>
+            <div className="tip-amounts">
+              {PRESETS.map(p => (
+                <button key={p}
+                  className={'tip-amount-btn' + (selected === p && !custom ? ' is-active' : '')}
+                  onClick={() => { setSelected(p); setCustom(''); }}>
+                  {'₹'}{p}
+                </button>
+              ))}
+            </div>
+            <div className="tip-custom">
+              <span className="tip-rupee">{'₹'}</span>
+              <input className="tip-custom-input" type="number" min="1" step="1"
+                placeholder="Custom amount" value={custom}
+                onChange={e => setCustom(e.target.value.replace(/\D/g, ''))} />
+            </div>
+            {isMobile ? (
+              <button className="tip-pay-btn" onClick={pay} disabled={amount < 1}>
+                {'Pay ₹'}{amount || '—'}{' via UPI ↗'}
+              </button>
+            ) : (
+              <div className="tip-desktop-pay">
+                <div className="tip-upi-box">
+                  <span className="tip-upi-label">{'UPI ID'}</span>
+                  <span className="tip-upi-value">{UPI_ID}</span>
+                  <button className="tip-copy-btn" onClick={() => copyText(UPI_ID, 'upi')}>
+                    {copied === 'upi' ? '✓ Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <div className="tip-upi-box">
+                  <span className="tip-upi-label">{'GPay / PhonePe'}</span>
+                  <span className="tip-upi-value">{PHONE}</span>
+                  <button className="tip-copy-btn" onClick={() => copyText(PHONE, 'phone')}>
+                    {copied === 'phone' ? '✓ Copied!' : 'Copy'}
+                  </button>
+                </div>
+                <button className="tip-pay-btn" style={{ marginTop: 16 }} onClick={pay} disabled={amount < 1}>
+                  {'I\'ve sent ₹'}{amount || '—'}{' ✨'}
+                </button>
+              </div>
+            )}
+            <p className="tip-fine">{'No account needed · Any UPI app works · Completely optional'}</p>
+          </div>
+        </div>
+      )}
+
+      {phase === 'celebrate' && (
+        <div className="tip-celebration" onClick={() => setPhase('idle')}>
+          {coins.map(c => (
+            <span key={c.id}
+              className={'tip-particle' + (c.type === 'star' ? ' is-star' : '')}
+              style={{
+                left: c.x + '%',
+                '--size': c.size + 'px',
+                '--dur': c.dur + 's',
+                '--delay': c.delay + 's',
+                '--r': c.r + 'deg',
+                '--drift': c.drift + 'px',
+              }}>
+              {c.type === 'star' ? '✦' : '₹'}
+            </span>
+          ))}
+          <div className="tip-thankyou">
+            <span className="tip-big-heart">{'❤️'}</span>
+            <h2>{"You're incredible!"}</h2>
+            <p className="tip-sent">{'₹'}{amount}{' · Thank you so much 🙏'}</p>
+            <p className="tip-sub-msg">{'This keeps PromptUndo free for everyone'}</p>
+            <button className="tip-dismiss" onClick={e => { e.stopPropagation(); setPhase('idle'); }}>
+              {'Keep exploring prompts →'}
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ── App ───────────────────────────────────────────────────────────────────────
 function App() {
   const pa = window.PA || {};
@@ -480,6 +625,7 @@ function App() {
       {openPrompt && (
         <CustomizeModal prompt={openPrompt} category={catMap[openPrompt.cat]} onClose={() => setOpenPrompt(null)} />
       )}
+      <TipJar />
     </div>
   );
 }
